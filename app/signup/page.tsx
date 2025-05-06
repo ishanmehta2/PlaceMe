@@ -2,17 +2,13 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/auth/supabase'
 
 export default function SignUp() {
   const router = useRouter()
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
-  const [email, setEmail] = useState('') // Added email for better identification
   const [image, setImage] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null
@@ -23,61 +19,11 @@ export default function SignUp() {
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
-    setError(null)
-    
-    try {
-      // 1. First upload the image if it exists
-      let selfieUrl = null
-      if (image) {
-        const fileExt = image.name.split('.').pop()
-        const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`
-        const filePath = `selfies/${fileName}`
-        
-        const { error: uploadError, data } = await supabase.storage
-          .from('user-images')
-          .upload(filePath, image)
-        
-        if (uploadError) {
-          throw new Error('Error uploading selfie: ' + uploadError.message)
-        }
-        console.log("hello")
-        
-        
-        // Get the public URL
-        const { data: { publicUrl } } = supabase.storage
-          .from('user-images')
-          .getPublicUrl(filePath)
-          
-        selfieUrl = publicUrl
-      }
-      
-      // 2. Save user data to database
-      const { error: insertError } = await supabase
-        .from('users')
-        .insert({
-          name,
-          phone,
-          email: email || null, // Handle empty email
-          selfie_url: selfieUrl,
-        })
-      
-      if (insertError) {
-        throw new Error('Error saving user data: ' + insertError.message)
-      }
-      
-      // Success! Redirect to thank you page or dashboard
-      alert('Signup successful!')
-      router.push('/thank-you') // Create this page if needed
-      
-    } catch (err: any) {
-      console.error('Signup error:', err)
-      setError(err.message || 'An error occurred during signup')
-    } finally {
-      setLoading(false)
-    }
+    console.log('Submitting', { name, phone, image })
+    alert('Signup successful!')
+    router.push('/')
   }
 
   return (
@@ -94,12 +40,6 @@ export default function SignUp() {
           </h1>
         </div>
 
-        {error && (
-          <div className="mx-6 mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-xl">
-            {error}
-          </div>
-        )}
-
         <form onSubmit={handleSubmit} className="px-6 pb-6 space-y-6">
           <div className="space-y-1">
             <label htmlFor="name" className="block text-4xl font-black" style={{ 
@@ -114,23 +54,6 @@ export default function SignUp() {
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-4 py-3 border-2 border-black rounded-2xl text-lg"
-              style={{ fontFamily: 'Arial, sans-serif' }}
-            />
-          </div>
-          
-          <div className="space-y-1">
-            <label htmlFor="email" className="block text-4xl font-black" style={{ 
-              fontFamily: 'Arial, sans-serif'
-            }}>
-              Email
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
               className="w-full px-4 py-3 border-2 border-black rounded-2xl text-lg"
               style={{ fontFamily: 'Arial, sans-serif' }}
             />
@@ -188,17 +111,18 @@ export default function SignUp() {
             </div>
           </div>
           
-          <div className="pt-2">
+          <div className="flex justify-center mt-6">
             <button
               type="submit"
-              disabled={loading}
-              className="w-full py-3 px-4 rounded-full text-white font-bold text-lg bg-[#FFE082] border-2 border-black"
-              style={{ 
-                textShadow: '1px 1px 0 #000',
-                boxShadow: '3px 3px 0 #000'
-              }}
+              className="bg-[#60A5FA] py-3 px-6 rounded-full"
             >
-              {loading ? 'Processing...' : 'Submit'}
+              <span className="text-xl font-black" style={{ 
+                textShadow: '2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000',
+                color: 'white',
+                fontFamily: 'Arial, sans-serif'
+              }}>
+                Submit
+              </span>
             </button>
           </div>
         </form>
