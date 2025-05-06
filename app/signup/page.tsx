@@ -43,6 +43,8 @@ export default function SignUp() {
         if (uploadError) {
           throw new Error('Error uploading selfie: ' + uploadError.message)
         }
+        console.log("hello")
+        
         
         // Get the public URL
         const { data: { publicUrl } } = supabase.storage
