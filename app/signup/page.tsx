@@ -2,13 +2,18 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { supabase } from '../../lib/auth/supabase'
 
 export default function SignUp() {
   const router = useRouter()
   const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [phone, setPhone] = useState('')
   const [image, setImage] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null
@@ -19,11 +24,88 @@ export default function SignUp() {
     }
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log('Submitting', { name, phone, image })
-    alert('Signup successful!')
-    router.push('/')
+    setLoading(true)
+    setError(null)
+    
+    try {
+      // 1. Sign up the user with Supabase Auth
+      const { data: authData, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: name,
+            phone: phone,
+            // We'd need to store the image separately and just save the URL
+          }
+        }
+      })
+
+      if (signUpError) throw signUpError
+
+      // 2. If we have an image, upload it to Supabase Storage
+      if (image) {
+        const fileExt = image.name.split('.').pop()
+        const fileName = `${authData.user?.id}-profile-image.${fileExt}`
+        
+        const { error: uploadError } = await supabase
+          .storage
+          .from('profile-images')
+          .upload(fileName, image)
+          
+        if (uploadError) {
+          console.error('Error uploading profile image:', uploadError)
+          // Continue anyway - the user account is created
+        } else {
+          // Get the public URL for the uploaded image
+          const { data: urlData } = supabase
+            .storage
+            .from('profile-images')
+            .getPublicUrl(fileName)
+            
+          // Update the user's metadata with the profile image URL
+          if (urlData) {
+            const { error: updateError } = await supabase.auth.updateUser({
+              data: { 
+                avatar_url: urlData.publicUrl 
+              }
+            })
+            
+            if (updateError) {
+              console.error('Error updating user profile with image URL:', updateError)
+            }
+          }
+        }
+      }
+
+      // 3. Create a record in the profiles table (if you have one)
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert([
+          { 
+            id: authData.user?.id,
+            name: name,
+            email: email,
+            phone: phone,
+            created_at: new Date().toISOString()
+          }
+        ])
+
+      if (profileError) {
+        console.error('Error creating profile:', profileError)
+        // Continue anyway - the user account is created
+      }
+
+      alert('Signup successful!')
+      router.push('/groups/group_initialization')
+    } catch (err: any) {
+      console.error('Signup error:', err)
+      setError(err.message || 'Failed to sign up')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -40,7 +122,13 @@ export default function SignUp() {
           </h1>
         </div>
 
-        <form onSubmit={handleSubmit} className="px-6 pb-6 space-y-6">
+        <form onSubmit={handleSubmit} className="px-6 pb-6 space-y-4">
+          {error && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-2xl">
+              {error}
+            </div>
+          )}
+        
           <div className="space-y-1">
             <label htmlFor="name" className="block text-4xl font-black" style={{ 
               fontFamily: 'Arial, sans-serif'
@@ -54,6 +142,42 @@ export default function SignUp() {
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
+              className="w-full px-4 py-3 border-2 border-black rounded-2xl text-lg"
+              style={{ fontFamily: 'Arial, sans-serif' }}
+            />
+          </div>
+          
+          <div className="space-y-1">
+            <label htmlFor="email" className="block text-4xl font-black" style={{ 
+              fontFamily: 'Arial, sans-serif'
+            }}>
+              Email<span className="text-black">*</span>
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-4 py-3 border-2 border-black rounded-2xl text-lg"
+              style={{ fontFamily: 'Arial, sans-serif' }}
+            />
+          </div>
+          
+          <div className="space-y-1">
+            <label htmlFor="password" className="block text-4xl font-black" style={{ 
+              fontFamily: 'Arial, sans-serif'
+            }}>
+              Password<span className="text-black">*</span>
+            </label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               className="w-full px-4 py-3 border-2 border-black rounded-2xl text-lg"
               style={{ fontFamily: 'Arial, sans-serif' }}
             />
@@ -76,7 +200,7 @@ export default function SignUp() {
             />
           </div>
           
-          <div className="space-y-4">
+          <div className="space-y-4 mt-2">
             <label className="block text-4xl font-black" style={{ 
               fontFamily: 'Arial, sans-serif'
             }}>
@@ -114,6 +238,7 @@ export default function SignUp() {
           <div className="flex justify-center mt-6">
             <button
               type="submit"
+              disabled={loading}
               className="bg-[#60A5FA] py-3 px-6 rounded-full"
             >
               <span className="text-xl font-black" style={{ 
@@ -121,7 +246,7 @@ export default function SignUp() {
                 color: 'white',
                 fontFamily: 'Arial, sans-serif'
               }}>
-                Submit
+                {loading ? 'Creating Account...' : 'Sign Up'}
               </span>
             </button>
           </div>
