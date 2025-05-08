@@ -12,6 +12,7 @@ export interface TokenProps {
   onClick?: () => void
   className?: string
   imageUrl?: string
+  isSelected?: boolean
 }
 
 export default function Token({
@@ -25,6 +26,7 @@ export default function Token({
   onClick,
   className = '',
   imageUrl,
+  isSelected = false,
 }: TokenProps) {
   const position = {
     left: `${50 + x * 45}%`,
@@ -47,9 +49,13 @@ export default function Token({
           backgroundColor: '#fffbe6',
           borderRadius: '50%',
           border: `${border}px solid ${color}`,
-          boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+          boxShadow: isSelected 
+            ? '0 0 0 4px rgba(0,0,0,0.2), 0 4px 8px rgba(0,0,0,0.2)' 
+            : '0 2px 4px rgba(0,0,0,0.2)',
           overflow: 'hidden',
           cursor: onClick ? 'pointer' : 'default',
+          transform: isSelected ? 'scale(1.1)' : 'scale(1)',
+          transition: 'all 0.3s ease-in-out',
         }}
         title={showTooltip ? name : undefined}
         onClick={onClick}
@@ -64,7 +70,13 @@ export default function Token({
       </div>
       <div
         className="mt-1 text-center"
-        style={{ fontWeight: 600, fontSize, color: '#222', textShadow: '0 1px 2px #fff' }}
+        style={{ 
+          fontWeight: isSelected ? 700 : 600, 
+          fontSize, 
+          color: '#222', 
+          textShadow: '0 1px 2px #fff',
+          transition: 'all 0.3s ease-in-out',
+        }}
       >
         {name}
       </div>

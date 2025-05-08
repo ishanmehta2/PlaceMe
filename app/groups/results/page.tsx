@@ -1,15 +1,18 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/auth/supabase'
 import Axis from '../../components/Axis'
 import Token from '../../components/Token'
 import { ArrowLeftIcon } from '@heroicons/react/24/solid'
+import { ChevronDownIcon } from '@heroicons/react/24/solid'
 
 // Constants for sizing
 const AXIS_SIZE = 300
 const TOKEN_SIZE = 35
+const GUESS_TOKEN_SIZE = 25 // Smaller size for guess tokens
+const ANIMATION_DURATION = 500 // Animation duration in ms
 
 // Hardcoded placeholder members for where others placed them
 const PLACEHOLDER_PLACEMENTS = [
@@ -92,13 +95,74 @@ const DEFAULT_USERS = [
   },
 ]
 
-// Hard-coded guessed positions for each user (in percent, some close, some further from self-placed)
-const GUESSED_POSITIONS: Record<string, { x: number; y: number }> = {
-  janina: { x: 35, y: 25 },    // upper center (close to self)
-  ishan: { x: 75, y: 35 },     // slightly lower right (close to self)
-  samantha: { x: 30, y: 65 },  // center left (moderate move)
-  nils: { x: 60, y: 80 },      // bottom center (distinct)
-  melody: { x: 55, y: 40 },    // slightly above center (close to self)
+// Playful, meme-style comments
+interface Comment {
+  author: string;
+  text: string;
+}
+type CommentsMap = { [userId: string]: Comment[] };
+
+const INITIAL_COMMENTS: CommentsMap = {
+  'janina': [
+    { author: 'Ishan', text: "bro no way you're a wet sock" },
+    { author: 'Samantha', text: 'I KNEW IT 😂' },
+    { author: 'Nils', text: 'classic Janina moment' }
+  ],
+  'ishan': [
+    { author: 'Janina', text: 'bro you belong here fr' },
+    { author: 'Melody', text: 'never doubted for a second' },
+    { author: 'Nils', text: 'this is so you' }
+  ],
+  'samantha': [
+    { author: 'Ishan', text: 'no way you picked that spot' },
+    { author: 'Janina', text: 'I called it!!' },
+    { author: 'Melody', text: 'this is your whole personality' }
+  ],
+  'nils': [
+    { author: 'Samantha', text: 'bro you are not real for this' },
+    { author: 'Ishan', text: 'I fucking knew it' },
+    { author: 'Janina', text: 'never change king' }
+  ],
+  'melody': [
+    { author: 'Nils', text: 'this is so melody coded' },
+    { author: 'Samantha', text: 'I saw this coming from a mile away' },
+    { author: 'Ishan', text: 'no notes, perfect placement' }
+  ]
+}
+
+// Interface for individual guesses
+interface IndividualGuess {
+  guesser: string;
+  position: { x: number; y: number };
+}
+
+// Individual guesses for each user
+const INDIVIDUAL_GUESSES: Record<string, IndividualGuess[]> = {
+  janina: [
+    { guesser: 'Ishan', position: { x: 15, y: 10 } },    // Far top left
+    { guesser: 'Samantha', position: { x: 45, y: 35 } }, // Center
+    { guesser: 'Nils', position: { x: 75, y: 20 } }      // Far top right
+  ],
+  ishan: [
+    { guesser: 'Janina', position: { x: 85, y: 15 } },   // Far top right
+    { guesser: 'Melody', position: { x: 65, y: 45 } },   // Center right
+    { guesser: 'Nils', position: { x: 90, y: 75 } }      // Far bottom right
+  ],
+  samantha: [
+    { guesser: 'Ishan', position: { x: 10, y: 70 } },    // Far bottom left
+    { guesser: 'Janina', position: { x: 35, y: 55 } },   // Center left
+    { guesser: 'Melody', position: { x: 60, y: 80 } }    // Bottom center
+  ],
+  nils: [
+    { guesser: 'Samantha', position: { x: 70, y: 85 } }, // Far bottom right
+    { guesser: 'Ishan', position: { x: 45, y: 65 } },    // Center bottom
+    { guesser: 'Janina', position: { x: 20, y: 90 } }    // Far bottom left
+  ],
+  melody: [
+    { guesser: 'Nils', position: { x: 40, y: 25 } },     // Upper center
+    { guesser: 'Samantha', position: { x: 65, y: 35 } }, // Upper right
+    { guesser: 'Ishan', position: { x: 25, y: 45 } }     // Center left
+  ]
 }
 
 // Helper to generate a random number in a range
@@ -119,6 +183,65 @@ export default function Results() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [groupId, setGroupId] = useState<string | null>(null)
   const [view, setView] = useState<'self' | 'guessed'>('self')
+  const [selectedToken, setSelectedToken] = useState<string | null>(null)
+  const [comments, setComments] = useState<CommentsMap>(INITIAL_COMMENTS)
+  const [newComment, setNewComment] = useState('')
+  const commentsEndRef = useRef<HTMLDivElement | null>(null)
+  const [showIndividualGuesses, setShowIndividualGuesses] = useState(false)
+  const [animationProgress, setAnimationProgress] = useState(0)
+  const [isAnimating, setIsAnimating] = useState(false)
+
+  // Auto-scroll to bottom when comments or selectedToken change
+  useEffect(() => {
+    if (commentsEndRef.current) {
+      commentsEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [comments, selectedToken])
+
+  // Reset animation when token selection changes
+  useEffect(() => {
+    if (selectedToken && view === 'guessed') {
+      setIsAnimating(true)
+      setAnimationProgress(0)
+      const startTime = Date.now()
+      const animate = () => {
+        const elapsed = Date.now() - startTime
+        const progress = Math.min(elapsed / ANIMATION_DURATION, 1)
+        setAnimationProgress(progress)
+        if (progress < 1) {
+          requestAnimationFrame(animate)
+        } else {
+          setIsAnimating(false)
+        }
+      }
+      requestAnimationFrame(animate)
+    }
+  }, [selectedToken, view])
+
+  // Handle deselection animation
+  useEffect(() => {
+    if (!selectedToken && view === 'guessed' && showIndividualGuesses) {
+      setIsAnimating(true)
+      const startTime = Date.now()
+      const animate = () => {
+        const elapsed = Date.now() - startTime
+        const progress = Math.max(1 - (elapsed / ANIMATION_DURATION), 0)
+        setAnimationProgress(progress)
+        if (progress > 0) {
+          requestAnimationFrame(animate)
+        } else {
+          setIsAnimating(false)
+          setShowIndividualGuesses(false)
+        }
+      }
+      requestAnimationFrame(animate)
+    }
+  }, [selectedToken, view, showIndividualGuesses])
+
+  // Helper to interpolate position based on animation progress
+  function interpolatePosition(start: number, end: number, progress: number) {
+    return start + (end - start) * progress
+  }
 
   // Memoized randomized positions for default users (per session)
   const randomizedDefaultPositions = useMemo(() => {
@@ -188,16 +311,16 @@ export default function Results() {
 
   // Helper to compute average guess for each member
   function getAveragedGuesses() {
-    return PLACEHOLDER_PLACEMENTS.map(member => {
-      const avg = member.positions.reduce((acc, pos) => ({
-        x: acc.x + pos.x,
-        y: acc.y + pos.y
+    return Object.entries(INDIVIDUAL_GUESSES).map(([userId, guesses]) => {
+      const avg = guesses.reduce((acc, guess) => ({
+        x: acc.x + guess.position.x,
+        y: acc.y + guess.position.y
       }), { x: 0, y: 0 })
-      const n = member.positions.length
+      const n = guesses.length
       return {
-        ...member,
-        avgX: avg.x / n,
-        avgY: avg.y / n
+        user_id: userId,
+        x: avg.x / n,
+        y: avg.y / n
       }
     })
   }
@@ -238,19 +361,43 @@ export default function Results() {
     })
   }
 
-  // Helper to get guessed positions for each user (hard-coded)
+  // Helper to get guessed positions for each user (calculated from individual guesses)
   function getGuessedTokens() {
     // Use the same users as self placed
     const users = getSelfPlacedTokens()
-    // For each user, use the hard-coded guessed position if available, else fallback to center
+    // Calculate average positions from individual guesses
+    const averagePositions = getAveragedGuesses()
+    // Map users to their average guessed positions
     return users.map(user => {
-      const guessed = GUESSED_POSITIONS[user.user_id] || { x: 50, y: 50 }
+      const avgPos = averagePositions.find(pos => pos.user_id === user.user_id)
       return {
         ...user,
-        x: guessed.x,
-        y: guessed.y,
+        x: avgPos ? avgPos.x : 50, // Fallback to center if no guesses
+        y: avgPos ? avgPos.y : 50,
       }
     })
+  }
+
+  // Helper to get individual guesses for a user
+  function getIndividualGuesses(userId: string) {
+    return INDIVIDUAL_GUESSES[userId] || []
+  }
+
+  function handleAddComment() {
+    if (!selectedToken || !newComment.trim()) return
+    // For demo, author is always 'You'
+    setComments(prev => ({
+      ...prev,
+      [selectedToken]: [
+        ...(prev[selectedToken] || []),
+        { author: 'You', text: newComment.trim() }
+      ]
+    }))
+    setNewComment('')
+  }
+
+  function handleInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') handleAddComment()
   }
 
   if (loading) {
@@ -314,6 +461,17 @@ export default function Results() {
               right: 'rgba(253, 230, 138, 0.95)' // Yellow
             }}
           >
+            {/* Click handler for the entire axis */}
+            <div 
+              className="absolute inset-0 z-10"
+              onClick={() => {
+                if (selectedToken) {
+                  setSelectedToken(null)
+                }
+              }}
+            />
+
+            {/* Main tokens - fade out when showing individual guesses */}
             {[view === 'self' ? getSelfPlacedTokens() : getGuessedTokens()].flat().map((user) => (
               <div
                 key={user.user_id}
@@ -322,8 +480,19 @@ export default function Results() {
                   left: user.x + '%',
                   top: user.y + '%',
                   transform: 'translate(-50%, -50%)',
-                  transition: 'left 0.7s cubic-bezier(0.4,0,0.2,1), top 0.7s cubic-bezier(0.4,0,0.2,1), transform 0.7s cubic-bezier(0.4,0,0.2,1)',
-                  zIndex: 10,
+                  transition: 'all 0.3s ease-in-out',
+                  zIndex: selectedToken === user.user_id ? 15 : 10,
+                  opacity: view === 'guessed' && selectedToken && selectedToken !== user.user_id ? 0 : 
+                          (selectedToken && selectedToken !== user.user_id ? 0.6 : 
+                          (selectedToken === user.user_id && view === 'guessed' ? 0.4 : 1)),
+                  cursor: 'pointer',
+                }}
+                onClick={(e) => {
+                  e.stopPropagation() // Prevent axis click handler from firing
+                  if (view === 'guessed') {
+                    setShowIndividualGuesses(true)
+                  }
+                  setSelectedToken(selectedToken === user.user_id ? null : user.user_id)
                 }}
               >
                 <Token
@@ -335,10 +504,131 @@ export default function Results() {
                   size={TOKEN_SIZE}
                   imageUrl={user.avatar_url}
                   showTooltip={false}
+                  isSelected={selectedToken === user.user_id}
                 />
               </div>
             ))}
+
+            {/* Individual guess tokens (only shown when a token is selected in guessed view) */}
+            {view === 'guessed' && selectedToken && (showIndividualGuesses || isAnimating) && 
+              getIndividualGuesses(selectedToken).map((guess, index) => {
+                // Get the average position for the selected token from the calculated averages
+                const avgPos = getAveragedGuesses().find(pos => pos.user_id === selectedToken) || { x: 50, y: 50 }
+                // Calculate the final position
+                const finalX = guess.position.x
+                const finalY = guess.position.y
+                // Interpolate position based on animation progress
+                const currentX = interpolatePosition(avgPos.x, finalX, animationProgress)
+                const currentY = interpolatePosition(avgPos.y, finalY, animationProgress)
+
+                return (
+                  <div
+                    key={`guess-${index}`}
+                    style={{
+                      position: 'absolute',
+                      left: currentX + '%',
+                      top: currentY + '%',
+                      transform: 'translate(-50%, -50%)',
+                      transition: 'all 0.3s ease-in-out',
+                      zIndex: 20,
+                      opacity: animationProgress,
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    <Token
+                      id={`guess-${index}`}
+                      name={guess.guesser}
+                      x={0}
+                      y={0}
+                      color={DEFAULT_USERS.find(u => u.username === guess.guesser)?.color || '#A855F7'}
+                      size={GUESS_TOKEN_SIZE}
+                      imageUrl={DEFAULT_USERS.find(u => u.username === guess.guesser)?.avatar_url}
+                      showTooltip={true}
+                    />
+                  </div>
+                )
+              })
+            }
           </Axis>
+        </div>
+
+        {/* Comments Panel */}
+        <div 
+          className={`fixed bottom-0 left-0 right-0 z-50 bg-[#FFF5D6] rounded-t-[36px] shadow-2xl transition-transform duration-300 ease-in-out transform ${
+            selectedToken ? 'translate-y-0' : 'translate-y-full'
+          }`}
+          style={{ maxHeight: '80vh', minHeight: '320px', overflowY: 'auto', boxShadow: '0 -8px 32px rgba(0,0,0,0.12)' }}
+        >
+          {selectedToken && (
+            <>
+              <div className="flex items-center justify-between px-4 pt-4 pb-2">
+                {/* Chevron down to close */}
+                <button onClick={() => {
+                  setSelectedToken(null)
+                  setShowIndividualGuesses(false)
+                }} aria-label="Close comments" className="p-1 mr-1">
+                  <ChevronDownIcon className="h-7 w-7 text-black" />
+                </button>
+                {/* Outlined playful header */}
+                <div className="flex-1 flex justify-center items-center">
+                  <span
+                    className="text-3xl font-black"
+                    style={{
+                      fontFamily: 'Arial Black, Arial, sans-serif',
+                      color: '#111',
+                      letterSpacing: '-1px',
+                    }}
+                  >
+                    {DEFAULT_USERS.find(u => u.user_id === selectedToken)?.username}
+                  </span>
+                </div>
+                {/* Avatar */}
+                <div className="ml-2 flex items-center justify-center">
+                  <img
+                    src={DEFAULT_USERS.find(u => u.user_id === selectedToken)?.avatar_url}
+                    alt="avatar"
+                    className="w-12 h-12 rounded-full border-4"
+                    style={{ borderColor: DEFAULT_USERS.find(u => u.user_id === selectedToken)?.color || '#A855F7' }}
+                  />
+                </div>
+              </div>
+
+              {/* Comments list */}
+              <div className="px-6 pb-4 pt-2">
+                <div className="rounded-3xl bg-[#FFFAED] p-4 min-h-[120px] max-h-[220px] overflow-y-auto text-lg font-semibold" style={{ fontFamily: 'Arial Rounded MT Bold, Arial, sans-serif' }}>
+                  {comments[selectedToken as keyof typeof comments]?.map((comment, index) => (
+                    <div key={index} className="mb-2">
+                      <span className="font-bold">{comment.author}:</span> {comment.text}
+                    </div>
+                  ))}
+                  <div ref={commentsEndRef} />
+                </div>
+              </div>
+
+              {/* Input */}
+              <div className="px-6 pb-6 flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Write a comment…."
+                  className="w-full rounded-full bg-[#F3F1E6] border-none px-5 py-3 text-lg placeholder:text-[#C2B68A] focus:outline-none focus:ring-2 focus:ring-[#EADFA7]"
+                  style={{ fontFamily: 'Arial Rounded MT Bold, Arial, sans-serif' }}
+                  value={newComment}
+                  onChange={e => setNewComment(e.target.value)}
+                  onKeyDown={handleInputKeyDown}
+                  autoFocus
+                  disabled={!selectedToken}
+                />
+                <button
+                  onClick={handleAddComment}
+                  className="bg-[#FFE9A7] rounded-full px-4 py-2 font-bold text-[#B89B2B] border-2 border-[#EADFA7] hover:bg-[#FFF5D6] transition"
+                  style={{ fontFamily: 'Arial Rounded MT Bold, Arial, sans-serif' }}
+                  disabled={!newComment.trim()}
+                >
+                  Send
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </main>
