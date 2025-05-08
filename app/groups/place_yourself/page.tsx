@@ -9,7 +9,8 @@ export default function PlaceYourself() {
   const router = useRouter()
   const [position, setPosition] = useState({ x: 50, y: 50 })
   const [isDragging, setIsDragging] = useState(false)
-  const [userName, setUserName] = useState('Michael')
+  const [userName, setUserName] = useState('')
+  const [firstName, setFirstName] = useState('')
   const [userAvatar, setUserAvatar] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -28,18 +29,151 @@ export default function PlaceYourself() {
           return
         }
         
-        // Get user profile
+        // Get current user ID from session storage if available
+        const currentUserId = sessionStorage.getItem('currentUserId') || user.id
+        
+        // Get user profile with detailed information
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('*')
-          .eq('id', user.id)
+          .eq('id', currentUserId)
           .single()
         
-        if (profileError) throw profileError
-        
-        if (profile) {
-          setUserName(profile.username || profile.full_name || 'User')
+        if (profileError) {
+          console.error('Error fetching profile:', profileError)
+          // If we can't get the profile, try to use what we have
+          setUserName(user.email || 'User')
+          setFirstName(user.email?.split('@')[0] || 'User')
+        } else if (profile) {
+          // Set user information from profile
+          setUserName(profile.username || profile.full_name || user.email || 'User')
+          
+          // Extract first name from full name if available
+          if (profile.full_name) {
+            setFirstName(profile.full_name.split(' ')[0])
+          } else if (profile.username) {
+            setFirstName(profile.username)
+          } else if (user.email) {
+            setFirstName(user.email.split('@')[0])
+          } else {
+            setFirstName('User')
+          }
+          
           setUserAvatar(profile.avatar_url || '')
+          
+          // Save user info to session storage for other pages
+          sessionStorage.setItem('currentUserName', profile.username || profile.full_name || user.email || 'User')
+          sessionStorage.setItem('currentFirstName', firstName)
+          sessionStorage.setItem('currentUserAvatar', profile.avatar_url || '')
+        }
+        
+        // Check if we have group information in session storage
+        const groupId = sessionStorage.getItem('currentGroupId')
+        const groupCode = sessionStorage.getItem('currentGroupCode')
+        
+        if (groupId && groupCode) {
+          console.log('Group found in session storage:', groupId, groupCode)
+          
+          // Check if user is a member of this group
+          const { data: memberData, error: memberError } = await supabase
+            .from('group_members')
+            .select('*')
+            .eq('group_id', groupId)
+            .eq('user_id', currentUserId)
+            .single()
+          
+          if (memberError && memberError.code === 'PGRST116') {
+            // User is not a member of this group, let's add them
+            const { error: addMemberError } = await supabase
+              .from('group_members')
+              .insert({
+                group_id: groupId,
+                user_id: currentUserId,
+                role: 'member',
+                created_at: new Date().toISOString()
+              })
+            
+            if (addMemberError) {
+              console.error('Error adding user as member:', addMemberError)
+            }
+          }
+        } else {
+          // No group in session storage, try to find one
+          
+          // First, check groups the user has created
+          const { data: createdGroups, error: createdGroupsError } = await supabase
+            .from('groups')
+            .select('*')
+            .eq('created_by', currentUserId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+          
+          if (!createdGroupsError && createdGroups && createdGroups.length > 0) {
+            // User created a group, use that one
+            const group = createdGroups[0]
+            
+            sessionStorage.setItem('currentGroupId', group.id)
+            sessionStorage.setItem('currentGroupCode', group.invite_code)
+            sessionStorage.setItem('currentGroupName', group.name)
+            
+            // Check if user is already a member
+            const { data: memberData, error: memberError } = await supabase
+              .from('group_members')
+              .select('*')
+              .eq('group_id', group.id)
+              .eq('user_id', currentUserId)
+              .single()
+            
+            if (memberError && memberError.code === 'PGRST116') {
+              // User is not a member of this group, let's add them
+              const { error: addMemberError } = await supabase
+                .from('group_members')
+                .insert({
+                  group_id: group.id,
+                  user_id: currentUserId,
+                  role: 'creator',
+                  created_at: new Date().toISOString()
+                })
+              
+              if (addMemberError) {
+                console.error('Error adding creator as member:', addMemberError)
+              }
+            }
+          } else {
+            // If not a creator, check for group memberships
+            const { data: groupMemberships, error: membershipError } = await supabase
+              .from('group_members')
+              .select('group_id')
+              .eq('user_id', currentUserId)
+              .order('created_at', { ascending: false })
+              .limit(1)
+            
+            if (!membershipError && groupMemberships && groupMemberships.length > 0) {
+              const groupId = groupMemberships[0].group_id
+              
+              // Get group details
+              const { data: group, error: groupDetailsError } = await supabase
+                .from('groups')
+                .select('*')
+                .eq('id', groupId)
+                .single()
+                
+              if (!groupDetailsError && group) {
+                sessionStorage.setItem('currentGroupId', group.id)
+                sessionStorage.setItem('currentGroupCode', group.invite_code)
+                sessionStorage.setItem('currentGroupName', group.name)
+              } else {
+                setError('Could not retrieve group details. Please create or join a group first.')
+              }
+            } else {
+              setError('No active group found. Please create or join a group first.')
+              
+              // Redirect to create group after a delay
+              setTimeout(() => {
+                router.push('/groups/create_group')
+              }, 3000)
+            }
+          }
         }
       } catch (err: any) {
         console.error('Error fetching user data:', err)
@@ -50,7 +184,7 @@ export default function PlaceYourself() {
     }
     
     fetchUserData()
-  }, [router])
+  }, [router, firstName])
   
   // Handle grid click or drag
   const handleGridInteraction = (e) => {
@@ -168,11 +302,11 @@ export default function PlaceYourself() {
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <div className="text-white text-2xl font-bold">{userName.charAt(0)}</div>
+                  <div className="text-white text-2xl font-bold">{firstName.charAt(0)}</div>
                 )}
               </div>
               <div className="mt-1 font-bold text-sm">
-                {userName}
+                {firstName}
               </div>
             </div>
           </div>

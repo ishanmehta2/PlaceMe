@@ -1,18 +1,76 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/auth/supabase'
 
 export default function JoinGroup() {
   const router = useRouter()
   const [inviteCode, setInviteCode] = useState('')
+  const [userId, setUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  
-  const handleJoin = async () => {
+
+  // Get authenticated user on component mount
+  useEffect(() => {
+    const getUser = async () => {
+      try {
+        const { data: { user }, error: userError } = await supabase.auth.getUser()
+        
+        if (userError) throw userError
+        
+        if (!user) {
+          // Redirect to login if not authenticated
+          router.push('/login')
+          return
+        }
+        
+        setUserId(user.id)
+        
+        // Get user profile
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single()
+        
+        if (!profileError && profile) {
+          // Store user info in sessionStorage
+          sessionStorage.setItem('currentUserId', user.id)
+          sessionStorage.setItem('currentUserEmail', user.email || '')
+          sessionStorage.setItem('currentUserName', profile.username || profile.full_name || user.email || '')
+          
+          const firstName = profile.full_name 
+            ? profile.full_name.split(' ')[0] 
+            : (profile.username || user.email?.split('@')[0] || 'User')
+            
+          sessionStorage.setItem('currentFirstName', firstName)
+          
+          if (profile.avatar_url) {
+            sessionStorage.setItem('currentUserAvatar', profile.avatar_url)
+          }
+        }
+      } catch (err) {
+        console.error('Error getting user:', err)
+      } finally {
+        setInitialLoading(false)
+      }
+    }
+    
+    getUser()
+  }, [router])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
     if (!inviteCode.trim()) {
-      setError('Invite code is required')
+      setError('Please enter an invite code')
+      return
+    }
+    
+    if (!userId) {
+      setError('You must be logged in to join a group')
       return
     }
     
@@ -20,58 +78,61 @@ export default function JoinGroup() {
     setError(null)
     
     try {
-      // Get the current user
-      const { data: { user } } = await supabase.auth.getUser()
-      
-      if (!user) {
-        throw new Error('You must be logged in to join a group')
-      }
-      
-      // Find the group by invite code
-      const { data: groups, error: groupError } = await supabase
+      // Find the group with this invite code
+      const { data: group, error: groupError } = await supabase
         .from('groups')
         .select('*')
-        .eq('invite_code', inviteCode)
-        .limit(1)
+        .eq('invite_code', inviteCode.trim())
+        .single()
       
-      if (groupError) throw groupError
-      
-      if (!groups || groups.length === 0) {
-        throw new Error('Invalid invite code')
+      if (groupError) {
+        if (groupError.code === 'PGRST116') {
+          throw new Error('Invalid invite code. Please check and try again.')
+        }
+        throw groupError
       }
       
-      const group = groups[0]
+      if (!group) {
+        throw new Error('Group not found. Please check the invite code and try again.')
+      }
       
       // Check if user is already a member
       const { data: existingMember, error: memberCheckError } = await supabase
         .from('group_members')
         .select('*')
         .eq('group_id', group.id)
-        .eq('user_id', user.id)
-        .limit(1)
+        .eq('user_id', userId)
+        .single()
       
-      if (memberCheckError) throw memberCheckError
-      
-      if (existingMember && existingMember.length > 0) {
-        throw new Error('You are already a member of this group')
+      if (!memberCheckError && existingMember) {
+        // User is already a member, just proceed to Place Yourself
+        sessionStorage.setItem('currentGroupId', group.id)
+        sessionStorage.setItem('currentGroupCode', group.invite_code)
+        sessionStorage.setItem('currentGroupName', group.name)
+        
+        router.push('/groups/place_yourself')
+        return
       }
       
-      // Add the user as a member
+      // Add user to the group
       const { error: joinError } = await supabase
         .from('group_members')
-        .insert([
-          { 
-            group_id: group.id,
-            user_id: user.id,
-            role: 'member'
-          }
-        ])
+        .insert({
+          group_id: group.id,
+          user_id: userId,
+          role: 'member',
+          created_at: new Date().toISOString()
+        })
       
       if (joinError) throw joinError
       
-      // Redirect to the home page
-      router.push('/home')
+      // Store group info in session storage
+      sessionStorage.setItem('currentGroupId', group.id)
+      sessionStorage.setItem('currentGroupCode', group.invite_code)
+      sessionStorage.setItem('currentGroupName', group.name)
       
+      // Redirect to Place Yourself instead of home
+      router.push('/groups/place_yourself')
     } catch (err: any) {
       console.error('Error joining group:', err)
       setError(err.message || 'Failed to join group')
@@ -79,7 +140,15 @@ export default function JoinGroup() {
       setLoading(false)
     }
   }
-  
+
+  if (initialLoading) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-[#FFF8E1]">
+        <div className="text-2xl">Loading...</div>
+      </main>
+    )
+  }
+
   return (
     <main className="flex min-h-screen flex-col items-center pt-8 p-4 bg-[#FFF8E1]">
       <div className="w-full max-w-sm">
@@ -94,50 +163,53 @@ export default function JoinGroup() {
           </h1>
         </div>
         
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-2xl mb-4">
-            {error}
-          </div>
-        )}
-        
-        <div className="space-y-8">
-          {/* Invite Code Input */}
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {error && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-2xl mb-4">
+              {error}
+            </div>
+          )}
+          
           <div className="space-y-2">
-            <label htmlFor="inviteCode" className="block text-4xl font-black" style={{ 
+            <label htmlFor="inviteCode" className="block text-3xl font-black" style={{ 
               fontFamily: 'Arial, sans-serif'
             }}>
               Enter Invite Code:
             </label>
+            
             <input
               id="inviteCode"
-              name="inviteCode"
               type="text"
-              required
               value={inviteCode}
               onChange={(e) => setInviteCode(e.target.value)}
-              className="w-full px-4 py-3 border-2 border-black rounded-lg text-xl"
-              style={{ fontFamily: 'Arial, sans-serif' }}
+              className="w-full px-4 py-4 border-2 border-black rounded-lg text-2xl text-center uppercase"
               placeholder="XXXXXX"
+              maxLength={10}
+              style={{ fontFamily: 'Arial, sans-serif' }}
             />
+            
+            <p className="text-sm text-center mt-2">
+              Enter the 6-digit code shared by your friend.
+            </p>
           </div>
           
           {/* Join Button */}
           <div className="flex justify-center mt-10">
             <button
-              onClick={handleJoin}
+              type="submit"
               disabled={loading}
-              className="bg-[#60A5FA] py-3 px-8 rounded-full w-64 active:bg-[#3B82F6] transition-colors"
+              className="bg-[#60A5FA] py-3 px-10 rounded-full"
             >
-              <span className="text-3xl font-black" style={{ 
+              <span className="text-2xl font-black" style={{ 
                 textShadow: '2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000',
                 color: 'white',
                 fontFamily: 'Arial, sans-serif'
               }}>
-                {loading ? 'Joining...' : 'Join Now'}
+                {loading ? 'Joining...' : 'Join Group'}
               </span>
             </button>
           </div>
-        </div>
+        </form>
       </div>
     </main>
   )

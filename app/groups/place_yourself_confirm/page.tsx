@@ -40,23 +40,53 @@ export default function PlaceYourselfConfirm() {
           return
         }
         
-        setUserId(user.id)
+        // Get user ID (from session storage or auth)
+        const currentUserId = sessionStorage.getItem('currentUserId') || user.id
+        setUserId(currentUserId)
         
-        // Get user profile
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single()
+        // Try to get user info from session storage first (set in previous screen)
+        const storedUserName = sessionStorage.getItem('currentUserName')
+        const storedFirstName = sessionStorage.getItem('currentFirstName')
+        const storedAvatar = sessionStorage.getItem('currentUserAvatar')
         
-        if (profileError) throw profileError
-        
-        if (profile) {
-          setUserName(profile.username || profile.full_name || 'User')
-          // Extract first name from full name if available
-          const fullName = profile.full_name || profile.username || 'User'
-          setFirstName(fullName.split(' ')[0])
-          setUserAvatar(profile.avatar_url || '')
+        if (storedUserName && storedFirstName) {
+          setUserName(storedUserName)
+          setFirstName(storedFirstName)
+          setUserAvatar(storedAvatar || '')
+        } else {
+          // If not in session storage, get from database
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', currentUserId)
+            .single()
+          
+          if (profileError) {
+            console.error('Error fetching profile:', profileError)
+            // Use what we have from auth
+            setUserName(user.email || 'User')
+            setFirstName(user.email?.split('@')[0] || 'User')
+          } else if (profile) {
+            setUserName(profile.username || profile.full_name || user.email || 'User')
+            
+            // Extract first name
+            if (profile.full_name) {
+              setFirstName(profile.full_name.split(' ')[0])
+            } else if (profile.username) {
+              setFirstName(profile.username)
+            } else if (user.email) {
+              setFirstName(user.email.split('@')[0])
+            } else {
+              setFirstName('User')
+            }
+            
+            setUserAvatar(profile.avatar_url || '')
+            
+            // Save to session storage for future use
+            sessionStorage.setItem('currentUserName', userName)
+            sessionStorage.setItem('currentFirstName', firstName)
+            sessionStorage.setItem('currentUserAvatar', profile.avatar_url || '')
+          }
         }
         
         // Get position from session storage
@@ -69,11 +99,42 @@ export default function PlaceYourselfConfirm() {
         const savedGroupId = sessionStorage.getItem('currentGroupId')
         const savedGroupCode = sessionStorage.getItem('currentGroupCode')
         
-        setGroupId(savedGroupId)
-        setGroupCode(savedGroupCode)
-        
-        if (!savedGroupId) {
-          setError('No group information found. Please go back to the group creation.')
+        if (savedGroupId && savedGroupCode) {
+          setGroupId(savedGroupId)
+          setGroupCode(savedGroupCode)
+        } else {
+          // Try to get latest group info from database
+          const { data: groupData, error: groupError } = await supabase
+            .from('group_members')
+            .select('group_id')
+            .eq('user_id', currentUserId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            
+          if (!groupError && groupData && groupData.length > 0) {
+            const recentGroupId = groupData[0].group_id
+            setGroupId(recentGroupId)
+            
+            // Get group details
+            const { data: group, error: groupDetailsError } = await supabase
+              .from('groups')
+              .select('invite_code, name')
+              .eq('id', recentGroupId)
+              .single()
+              
+            if (!groupDetailsError && group) {
+              setGroupCode(group.invite_code)
+              
+              // Store in session storage
+              sessionStorage.setItem('currentGroupId', recentGroupId)
+              sessionStorage.setItem('currentGroupCode', group.invite_code)
+              sessionStorage.setItem('currentGroupName', group.name)
+            } else {
+              setError('Could not retrieve group details. Please go back to group creation.')
+            }
+          } else {
+            setError('No active group found. Please create or join a group first.')
+          }
         }
       } catch (err: any) {
         console.error('Error fetching data:', err)
@@ -84,7 +145,7 @@ export default function PlaceYourselfConfirm() {
     }
     
     fetchData()
-  }, [router])
+  }, [router, userName, firstName])
 
   // Handle confirmation
   const handleConfirm = async () => {
@@ -116,8 +177,8 @@ export default function PlaceYourselfConfirm() {
       
       if (saveError) throw saveError
       
-      // Navigate to home
-      router.push('/home')
+      // Navigate to place_others instead of home
+      router.push('/groups/place_others')
     } catch (err: any) {
       console.error('Error saving position:', err)
       setError(err.message || 'Failed to save your preferences')

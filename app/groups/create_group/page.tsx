@@ -1,19 +1,88 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/auth/supabase'
+
+// Function to generate a random group code
+function generateGroupCode() {
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+  let code = ''
+  for (let i = 0; i < 6; i++) {
+    code += characters.charAt(Math.floor(Math.random() * characters.length))
+  }
+  return code
+}
 
 export default function CreateGroup() {
   const router = useRouter()
   const [groupName, setGroupName] = useState('')
-  const [canPlaceOthers, setCanPlaceOthers] = useState(true)
+  const [userId, setUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  
-  const handleNext = async () => {
+
+  // Get authenticated user on component mount
+  useEffect(() => {
+    const getUser = async () => {
+      try {
+        const { data: { user }, error: userError } = await supabase.auth.getUser()
+        
+        if (userError) throw userError
+        
+        if (!user) {
+          // Redirect to login if not authenticated
+          router.push('/login')
+          return
+        }
+        
+        setUserId(user.id)
+        
+        // Save user ID to session storage
+        sessionStorage.setItem('currentUserId', user.id)
+        
+        // Get user profile
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single()
+        
+        if (!profileError && profile) {
+          // Store user info in sessionStorage
+          sessionStorage.setItem('currentUserEmail', user.email || '')
+          sessionStorage.setItem('currentUserName', profile.username || profile.full_name || user.email || '')
+          
+          const firstName = profile.full_name 
+            ? profile.full_name.split(' ')[0] 
+            : (profile.username || user.email?.split('@')[0] || 'User')
+            
+          sessionStorage.setItem('currentFirstName', firstName)
+          
+          if (profile.avatar_url) {
+            sessionStorage.setItem('currentUserAvatar', profile.avatar_url)
+          }
+        }
+      } catch (err) {
+        console.error('Error getting user:', err)
+      } finally {
+        setInitialLoading(false)
+      }
+    }
+    
+    getUser()
+  }, [router])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
     if (!groupName.trim()) {
-      setError('Group name is required')
+      setError('Please enter a group name')
+      return
+    }
+    
+    if (!userId) {
+      setError('You must be logged in to create a group')
       return
     }
     
@@ -21,46 +90,49 @@ export default function CreateGroup() {
     setError(null)
     
     try {
-      // Get the current user
-      const { data: { user } } = await supabase.auth.getUser()
+      // Generate a unique invite code
+      const inviteCode = generateGroupCode()
       
-      if (!user) {
-        throw new Error('You must be logged in to create a group')
-      }
-      
-      // Create a new group in the database
-      const { data: group, error: groupError } = await supabase
+      // Create the group
+      const { data: newGroup, error: groupError } = await supabase
         .from('groups')
-        .insert([
-          { 
-            name: groupName,
-            created_by: user.id,
-            settings: {
-              can_place_others: canPlaceOthers
-            }
-          }
-        ])
+        .insert({
+          name: groupName.trim(),
+          invite_code: inviteCode,
+          created_by: userId,
+          created_at: new Date().toISOString()
+        })
         .select()
+        .single()
       
       if (groupError) throw groupError
       
-      // Add the creator as a member of the group
-      if (group && group.length > 0) {
-        const { error: memberError } = await supabase
-          .from('group_members')
-          .insert([
-            { 
-              group_id: group[0].id,
-              user_id: user.id,
-              role: 'admin'
-            }
-          ])
-        
-        if (memberError) throw memberError
-        
-        // Redirect to the group code page to share with friends
-        router.push(`/groups/group_code?group_id=${group[0].id}`)
+      if (!newGroup || !newGroup.id) {
+        throw new Error('Failed to create group')
       }
+      
+      // Add the creator as a member of the group
+      const { error: memberError } = await supabase
+        .from('group_members')
+        .insert({
+          group_id: newGroup.id,
+          user_id: userId,
+          role: 'creator', // Mark as creator
+          created_at: new Date().toISOString()
+        })
+      
+      if (memberError) {
+        console.error('Error adding creator as member:', memberError)
+        // Continue anyway since the group was created
+      }
+      
+      // Store group info in session storage
+      sessionStorage.setItem('currentGroupId', newGroup.id)
+      sessionStorage.setItem('currentGroupCode', inviteCode)
+      sessionStorage.setItem('currentGroupName', groupName.trim())
+      
+      // Redirect to the group code page with the group ID
+      router.push(`/groups/group_code?group_id=${newGroup.id}`)
     } catch (err: any) {
       console.error('Error creating group:', err)
       setError(err.message || 'Failed to create group')
@@ -68,7 +140,15 @@ export default function CreateGroup() {
       setLoading(false)
     }
   }
-  
+
+  if (initialLoading) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-[#FFF8E1]">
+        <div className="text-2xl">Loading...</div>
+      </main>
+    )
+  }
+
   return (
     <main className="flex min-h-screen flex-col items-center pt-8 p-4 bg-[#FFF8E1]">
       <div className="w-full max-w-sm">
@@ -88,86 +168,53 @@ export default function CreateGroup() {
           <h2 className="text-2xl font-bold" style={{ 
             fontFamily: 'Arial, sans-serif'
           }}>
-            Step 1. BORING info
+            Step 1. Name your group!
           </h2>
         </div>
         
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-2xl mb-4">
-            {error}
-          </div>
-        )}
-        
-        <div className="space-y-8">
-          {/* Group Name Input */}
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {error && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-2xl mb-4">
+              {error}
+            </div>
+          )}
+          
           <div className="space-y-2">
-            <label htmlFor="groupName" className="block text-5xl font-black" style={{ 
+            <label htmlFor="groupName" className="block text-3xl font-black" style={{ 
               fontFamily: 'Arial, sans-serif'
             }}>
               Group Name:
             </label>
+            
             <input
               id="groupName"
-              name="groupName"
               type="text"
-              required
               value={groupName}
               onChange={(e) => setGroupName(e.target.value)}
               className="w-full px-4 py-3 border-2 border-black rounded-lg text-xl"
+              placeholder="Enter group name..."
+              maxLength={50}
               style={{ fontFamily: 'Arial, sans-serif' }}
             />
           </div>
           
-          {/* Settings Section */}
-          <div className="space-y-4">
-            <h3 className="text-5xl font-black" style={{ 
-              fontFamily: 'Arial, sans-serif'
-            }}>
-              Settings:
-            </h3>
-            
-            <div className="flex items-start space-x-4">
-              <div 
-                className={`w-10 h-10 border-2 border-black rounded flex items-center justify-center cursor-pointer ${canPlaceOthers ? 'bg-white' : 'bg-white'}`}
-                onClick={() => setCanPlaceOthers(!canPlaceOthers)}
-              >
-                {canPlaceOthers && (
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-green-600" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                )}
-              </div>
-              
-              <div>
-                <label className="text-2xl font-bold" style={{ fontFamily: 'Arial, sans-serif' }}>
-                  place others*
-                </label>
-                <p className="text-sm mt-1" style={{ fontFamily: 'Arial, sans-serif' }}>
-                  *members of your group can<br />
-                  guess where other members<br />
-                  place themselves
-                </p>
-              </div>
-            </div>
+          {/* Create Button */}
+          <div className="flex justify-center mt-10">
+            <button
+              type="submit"
+              disabled={loading}
+              className="bg-[#60A5FA] py-3 px-10 rounded-full"
+            >
+              <span className="text-2xl font-black" style={{ 
+                textShadow: '2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000',
+                color: 'white',
+                fontFamily: 'Arial, sans-serif'
+              }}>
+                {loading ? 'Creating...' : 'Create Group'}
+              </span>
+            </button>
           </div>
-        </div>
-        
-        {/* Next Button */}
-        <div className="flex justify-center mt-16">
-          <button
-            onClick={handleNext}
-            disabled={loading}
-            className="bg-[#60A5FA] py-3 px-8 rounded-full w-64 active:bg-[#3B82F6] transition-colors"
-          >
-            <span className="text-3xl font-black" style={{ 
-              textShadow: '2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000',
-              color: 'white',
-              fontFamily: 'Arial, sans-serif'
-            }}>
-              {loading ? 'loading...' : 'next'}
-            </span>
-          </button>
-        </div>
+        </form>
       </div>
     </main>
   )

@@ -49,8 +49,68 @@ export default function Login() {
         // Continue anyway since the user is authenticated
       }
 
-      alert('Login successful!')
-      router.push('/home')
+      // Get user's profile data
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single()
+        
+      if (profileError) {
+        console.error('Error fetching profile:', profileError)
+      }
+      
+      // Get user's active group (if any)
+      const { data: groupData, error: groupError } = await supabase
+        .from('group_members')
+        .select('group_id')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+
+      if (groupError) {
+        console.error('Error fetching user groups:', groupError)
+      }
+
+      // Store user info in sessionStorage for use across pages
+      sessionStorage.setItem('currentUserId', userId || '')
+      sessionStorage.setItem('currentUserEmail', email)
+      
+      // Store profile info if available
+      if (profileData) {
+        sessionStorage.setItem('currentUserName', profileData.username || profileData.full_name || email)
+        sessionStorage.setItem('currentFirstName', 
+          profileData.full_name 
+            ? profileData.full_name.split(' ')[0] 
+            : (profileData.username || email.split('@')[0])
+        )
+        if (profileData.avatar_url) {
+          sessionStorage.setItem('currentUserAvatar', profileData.avatar_url)
+        }
+      }
+
+      // If user has an active group, store the group ID
+      let groupId = null
+      if (groupData && groupData.length > 0) {
+        groupId = groupData[0].group_id
+        
+        // Fetch group details to get the group code
+        const { data: group, error: groupDetailsError } = await supabase
+          .from('groups')
+          .select('invite_code, name')
+          .eq('id', groupId)
+          .single()
+          
+        if (!groupDetailsError && group) {
+          sessionStorage.setItem('currentGroupId', groupId)
+          sessionStorage.setItem('currentGroupCode', group.invite_code)
+          sessionStorage.setItem('currentGroupName', group.name)
+        }
+      }
+      
+      // Always route to Place Yourself first, even if no group
+      // The Place Yourself component will handle redirecting if no group is found
+      router.push('/groups/place_yourself')
     } catch (err: any) {
       console.error('Login error:', err)
       setError(err.message || 'Failed to login')
