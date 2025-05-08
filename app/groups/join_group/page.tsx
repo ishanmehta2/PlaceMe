@@ -69,8 +69,8 @@ export default function JoinGroup() {
       
       if (joinError) throw joinError
       
-      // Redirect to the group's main page
-      router.push(`/groups/view?id=${group.id}`)
+      // Redirect to the home page
+      router.push('/home')
       
     } catch (err: any) {
       console.error('Error joining group:', err)

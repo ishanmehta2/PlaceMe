@@ -50,7 +50,7 @@ export default function Login() {
       }
 
       alert('Login successful!')
-      router.push('/')
+      router.push('/home')
     } catch (err: any) {
       console.error('Login error:', err)
       setError(err.message || 'Failed to login')

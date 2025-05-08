@@ -58,8 +58,8 @@ export default function CreateGroup() {
         
         if (memberError) throw memberError
         
-        // Redirect to the next step in the group creation process
-        router.push(`/groups/create_group/invite?group_id=${group[0].id}`)
+        // Redirect to the group code page to share with friends
+        router.push(`/groups/group_code?group_id=${group[0].id}`)
       }
     } catch (err: any) {
       console.error('Error creating group:', err)
