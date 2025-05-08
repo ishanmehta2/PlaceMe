@@ -35,6 +35,11 @@ export default function GroupCode() {
         if (group) {
           setGroupCode(group.invite_code)
           setGroupName(group.name)
+          
+          // Store group info in sessionStorage for use in other pages
+          sessionStorage.setItem('currentGroupId', group.id)
+          sessionStorage.setItem('currentGroupName', group.name)
+          sessionStorage.setItem('currentGroupCode', group.invite_code)
         } else {
           setError('Group not found')
         }
@@ -60,8 +65,10 @@ export default function GroupCode() {
       })
   }
   
+  // Modified to route to place_yourself instead of home
   const handleDone = () => {
-    router.push(`/home`)
+    // Route to the first Place Yourself screen instead of home
+    router.push(`/groups/place_yourself`)
   }
   
   if (loading) {
