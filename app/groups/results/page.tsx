@@ -300,19 +300,19 @@ export default function Results() {
         {/* Axis with tokens */}
         <div className="relative">
           <Axis
+            size={AXIS_SIZE}
             labels={{
-              top: 'bowling',
-              bottom: 'movies',
-              left: 'pizza',
-              right: 'hot dog'
+              top: 'Wet Sock',
+              bottom: 'Dry Tongue',
+              left: 'Tree Hugger',
+              right: 'Lumberjack'
             }}
             labelColors={{
-              top: '#FECACA',
-              bottom: '#DCFCE7',
-              left: '#FEF3C7',
-              right: '#DBEAFE',
+              top: 'rgba(251, 207, 232, 0.95)', // Pink
+              bottom: 'rgba(167, 243, 208, 0.95)', // Green
+              left: 'rgba(221, 214, 254, 0.95)', // Purple
+              right: 'rgba(253, 230, 138, 0.95)' // Yellow
             }}
-            size={AXIS_SIZE}
           >
             {[view === 'self' ? getSelfPlacedTokens() : getGuessedTokens()].flat().map((user) => (
               <div

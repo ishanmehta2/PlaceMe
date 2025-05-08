@@ -308,10 +308,10 @@ export default function PlaceYourself() {
           first_name: firstName,
           position_x: percentX,
           position_y: percentY,
-          top_label: 'bowling',
-          bottom_label: 'movies',
-          left_label: 'pizza',
-          right_label: 'hot dog',
+          top_label: 'Wet Sock',
+          bottom_label: 'Dry Tongue',
+          left_label: 'Tree Hugger',
+          right_label: 'Lumberjack',
           created_at: new Date().toISOString()
         })
       
@@ -362,19 +362,19 @@ export default function PlaceYourself() {
           >
             <div ref={gridRef} className="relative">
               <Axis
+                size={AXIS_SIZE}
                 labels={{
-                  top: 'bowling',
-                  bottom: 'movies',
-                  left: 'pizza',
-                  right: 'hot dog'
+                  top: 'Wet Sock',
+                  bottom: 'Dry Tongue',
+                  left: 'Tree Hugger',
+                  right: 'Lumberjack'
                 }}
                 labelColors={{
-                  top: '#FECACA',
-                  bottom: '#DCFCE7',
-                  left: '#FEF3C7',
-                  right: '#DBEAFE',
+                  top: 'rgba(251, 207, 232, 0.95)', // Pink
+                  bottom: 'rgba(167, 243, 208, 0.95)', // Green
+                  left: 'rgba(221, 214, 254, 0.95)', // Purple
+                  right: 'rgba(253, 230, 138, 0.95)' // Yellow
                 }}
-                size={AXIS_SIZE}
               >
                 <DraggableToken
                   position={position}

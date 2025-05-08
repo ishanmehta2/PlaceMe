@@ -251,10 +251,10 @@ export default function PlaceOthers() {
             first_name: member.username, // Using username as first name for now
             position_x: positions[userId].x,
             position_y: positions[userId].y,
-            top_label: 'bowling',
-            bottom_label: 'movies',
-            left_label: 'pizza',
-            right_label: 'hot dog',
+            top_label: 'Wet Sock',
+            bottom_label: 'Dry Tongue',
+            left_label: 'Tree Hugger',
+            right_label: 'Lumberjack',
             created_at: new Date().toISOString()
           })
         
@@ -308,19 +308,19 @@ export default function PlaceOthers() {
           >
             <div ref={gridRef} className="relative">
               <Axis
+                size={AXIS_SIZE}
                 labels={{
-                  top: 'bowling',
-                  bottom: 'movies',
-                  left: 'pizza',
-                  right: 'hot dog'
+                  top: 'Wet Sock',
+                  bottom: 'Dry Tongue',
+                  left: 'Tree Hugger',
+                  right: 'Lumberjack'
                 }}
                 labelColors={{
-                  top: '#FECACA',
-                  bottom: '#DCFCE7',
-                  left: '#FEF3C7',
-                  right: '#DBEAFE',
+                  top: 'rgba(251, 207, 232, 0.95)', // Pink
+                  bottom: 'rgba(167, 243, 208, 0.95)', // Green
+                  left: 'rgba(221, 214, 254, 0.95)', // Purple
+                  right: 'rgba(253, 230, 138, 0.95)' // Yellow
                 }}
-                size={AXIS_SIZE}
               >
                 {groupMembers.map((member) => (
                   <DraggableToken

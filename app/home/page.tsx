@@ -45,15 +45,15 @@ export default function Home() {
   
   // Mock data for the frontend demo
   useEffect(() => {
-    // Create dates from May 4th to May 7th
-    const dates = Array.from({ length: 4 }, (_, i) => {
+    // Create dates from May 4th to May 8th
+    const dates = Array.from({ length: 5 }, (_, i) => {
       const date = new Date(2024, 4, 4 + i)
       return date
     }).reverse() // Reverse to get most recent first
     
     // Different positions for each day
     const dailyPositions = [
-      // May 7th positions
+      // May 8th positions
       [
         { x: -0.6, y: -0.4 },
         { x: 0.6, y: -0.6 },
@@ -61,7 +61,7 @@ export default function Home() {
         { x: 0.4, y: 0.4 },
         { x: 0, y: 0 }
       ],
-      // May 6th positions
+      // May 7th positions
       [
         { x: -0.4, y: -0.2 },
         { x: -0.9, y: -0.4 },
@@ -69,7 +69,7 @@ export default function Home() {
         { x: 0.2, y: 0.2 },
         { x: 0, y: 0 }
       ],
-      // May 5th positions
+      // May 6th positions
       [
         { x: -0.2, y: 0 },
         { x: 0.2, y: -0.2 },
@@ -77,24 +77,45 @@ export default function Home() {
         { x: 0, y: 0 },
         { x: -0.4, y: -0.4 }
       ],
-      // May 4th positions
+      // May 5th positions
       [
         { x: 0, y: 0.2 },
         { x: 0, y: -0.2 },
         { x: 0.2, y: 0 },
         { x: -0.2, y: 0 },
         { x: 0.4, y: -0.4 }
+      ],
+      // May 4th positions
+      [
+        { x: 0.2, y: 0 },
+        { x: -0.2, y: 0 },
+        { x: 0, y: 0.2 },
+        { x: 0, y: -0.2 },
+        { x: 0.4, y: -0.4 }
       ]
     ]
     
     // Different axis labels for each day
     const dailyLabels = [
+      // May 8th labels (same as results page)
+      {
+        top: 'Wet Sock',
+        bottom: 'Dry Tongue',
+        left: 'Tree Hugger',
+        right: 'Lumberjack',
+        labelColors: {
+          top: 'rgba(251, 207, 232, 0.95)', // Pink
+          bottom: 'rgba(167, 243, 208, 0.95)', // Green
+          left: 'rgba(221, 214, 254, 0.95)', // Purple
+          right: 'rgba(253, 230, 138, 0.95)' // Yellow
+        }
+      },
       // May 7th labels
       {
-        top: 'Adventurous',
-        bottom: 'Cautious',
-        left: 'Follower',
-        right: 'Leader',
+        top: 'Early Bird',
+        bottom: 'Last Minute',
+        left: 'Solo Traveler',
+        right: 'Group Explorer',
         labelColors: {
           top: 'rgba(251, 207, 232, 0.95)', // Pink
           bottom: 'rgba(167, 243, 208, 0.95)', // Green
@@ -104,10 +125,10 @@ export default function Home() {
       },
       // May 6th labels
       {
-        top: 'Creative',
-        bottom: 'Practical',
-        left: 'Analytical',
-        right: 'Intuitive',
+        top: 'Morning Person',
+        bottom: 'Night Owl',
+        left: 'Planner',
+        right: 'Spontaneous',
         labelColors: {
           top: 'rgba(167, 243, 208, 0.95)', // Green
           bottom: 'rgba(251, 207, 232, 0.95)', // Pink
@@ -117,10 +138,10 @@ export default function Home() {
       },
       // May 5th labels
       {
-        top: 'Extrovert',
-        bottom: 'Introvert',
-        left: 'Planner',
-        right: 'Spontaneous',
+        top: 'Cat Person',
+        bottom: 'Dog Person',
+        left: 'Beach',
+        right: 'Mountains',
         labelColors: {
           top: 'rgba(253, 230, 138, 0.95)', // Yellow
           bottom: 'rgba(221, 214, 254, 0.95)', // Purple
@@ -130,10 +151,10 @@ export default function Home() {
       },
       // May 4th labels
       {
-        top: 'Kinky',
-        bottom: 'Vanilla',
-        left: 'Sub',
-        right: 'Dom',
+        top: 'Sweet Tooth',
+        bottom: 'Savory Fan',
+        left: 'City Life',
+        right: 'Country Living',
         labelColors: {
           top: 'rgba(221, 214, 254, 0.95)', // Purple
           bottom: 'rgba(253, 230, 138, 0.95)', // Yellow
@@ -249,26 +270,28 @@ export default function Home() {
             {placement.date}
           </h2>
           
-          <Axis
-            labels={{
-              top: placement.labels.top,
-              bottom: placement.labels.bottom,
-              left: placement.labels.left,
-              right: placement.labels.right
-            }}
-            labelColors={placement.labels.labelColors}
-            size={300}
-            tokenSize={36}
-            tokens={placement.members.map(member => ({
-              id: member.id,
-              name: member.name,
-              x: member.position?.x || 0.5,
-              y: member.position?.y || 0.5,
-              color: member.color,
-              borderColor: member.borderColor,
-              imageUrl: member.imageUrl
-            }))}
-          />
+          <div onClick={() => router.push('/groups/results')} className="cursor-pointer">
+            <Axis
+              labels={{
+                top: placement.labels.top,
+                bottom: placement.labels.bottom,
+                left: placement.labels.left,
+                right: placement.labels.right
+              }}
+              labelColors={placement.labels.labelColors}
+              size={300}
+              tokenSize={36}
+              tokens={placement.members.map(member => ({
+                id: member.id,
+                name: member.name,
+                x: member.position?.x || 0.5,
+                y: member.position?.y || 0.5,
+                color: member.color,
+                borderColor: member.borderColor,
+                imageUrl: member.imageUrl
+              }))}
+            />
+          </div>
         </div>
       ))}
       
