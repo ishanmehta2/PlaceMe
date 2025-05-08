@@ -7,6 +7,12 @@ interface AxisProps {
     left: string
     right: string
   }
+  labelColors?: {
+    top?: string
+    bottom?: string
+    left?: string
+    right?: string
+  }
   backgroundColor?: string
   size?: number
   children?: React.ReactNode
@@ -14,46 +20,77 @@ interface AxisProps {
 
 export default function Axis({
   labels,
+  labelColors = {},
   backgroundColor = '#E0E7FF',
   size = 300,
   children,
 }: AxisProps) {
   // Padding from edge for labels
   const pad = Math.round(size * 0.06)
-  const labelStyle = {
-    background: 'rgba(255,255,255,0.85)',
+  const baseLabelStyle = {
     borderRadius: '8px',
-    boxShadow: '0 1px 4px rgba(0,0,0,0.07)',
-    padding: '2px 10px',
-    fontSize: Math.round(size * 0.09),
-    fontWeight: 700,
+    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+    padding: '4px 12px',
+    fontSize: Math.round(size * 0.11),
+    fontWeight: 800,
     pointerEvents: 'none' as const,
     userSelect: 'none' as const,
     lineHeight: 1.1,
     whiteSpace: 'nowrap' as const,
+    color: 'black',
+    background: 'rgba(255,255,255,0.95)',
   }
+
+  // Container size includes space for labels
+  const containerSize = size + 80 // Add extra space for labels
+
   return (
-    <div
-      className="relative rounded-xl"
-      style={{ width: size, height: size, backgroundColor }}
-    >
-      {/* Axis lines */}
+    <div className="relative" style={{ width: containerSize, height: containerSize }}>
+      {/* Grid container */}
       <div
-        className="absolute left-1/2 top-0 h-full w-0.5 bg-black"
-        style={{ transform: 'translateX(-50%)' }}
-      />
-      <div
-        className="absolute top-1/2 left-0 w-full h-0.5 bg-black"
-        style={{ transform: 'translateY(-50%)' }}
-      />
-      {/* Axis labels */}
+        className="absolute left-1/2 top-1/2"
+        style={{
+          width: size,
+          height: size,
+          backgroundColor: 'white',
+          transform: 'translate(-50%, -50%)',
+          position: 'relative',
+          borderRadius: '24px',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Axis lines */}
+        <div
+          className="absolute left-1/2 top-0 h-full"
+          style={{
+            width: '3px',
+            backgroundColor: 'black',
+            transform: 'translateX(-50%)',
+            zIndex: 1,
+          }}
+        />
+        <div
+          className="absolute top-1/2 left-0 w-full"
+          style={{
+            height: '3px',
+            backgroundColor: 'black',
+            transform: 'translateY(-50%)',
+            zIndex: 1,
+          }}
+        />
+        {/* Children (draggables, etc.) */}
+        {children}
+      </div>
+
+      {/* Axis labels - positioned outside the grid */}
       {/* Top */}
       <div
         className="absolute left-1/2"
         style={{
-          ...labelStyle,
-          top: pad,
+          ...baseLabelStyle,
+          top: 0,
           transform: 'translateX(-50%)',
+          background: labelColors.top || 'rgba(255,255,255,0.85)',
         }}
       >
         {labels.top}
@@ -62,37 +99,43 @@ export default function Axis({
       <div
         className="absolute left-1/2"
         style={{
-          ...labelStyle,
-          bottom: pad,
+          ...baseLabelStyle,
+          bottom: 0,
           transform: 'translateX(-50%)',
+          background: labelColors.bottom || 'rgba(255,255,255,0.85)',
         }}
       >
         {labels.bottom}
       </div>
-      {/* Left (rotated) */}
+      {/* Left */}
       <div
         className="absolute top-1/2"
         style={{
-          ...labelStyle,
-          left: pad,
-          transform: 'translateY(-50%) rotate(-12deg)',
+          ...baseLabelStyle,
+          left: 0,
+          writingMode: 'vertical-lr',
+          textOrientation: 'mixed',
+          background: labelColors.left || 'rgba(255,255,255,0.85)',
+          transformOrigin: 'center',
+          transform: 'translateY(-50%) rotate(180deg)',
         }}
       >
         {labels.left}
       </div>
-      {/* Right (rotated) */}
+      {/* Right */}
       <div
         className="absolute top-1/2"
         style={{
-          ...labelStyle,
-          right: pad,
-          transform: 'translateY(-50%) rotate(12deg)',
+          ...baseLabelStyle,
+          right: 0,
+          transform: 'translateY(-50%)',
+          writingMode: 'vertical-lr',
+          textOrientation: 'mixed',
+          background: labelColors.right || 'rgba(255,255,255,0.85)',
         }}
       >
         {labels.right}
       </div>
-      {/* Children (draggables, etc.) */}
-      {children}
     </div>
   )
 } 

@@ -91,7 +91,7 @@ export default function Home() {
         {/* Buttons */}
         <button 
           onClick={() => router.push('/signup')}
-          className="w-64 py-3 mb-4 bg-[#60A5FA] rounded-full"
+          className="w-64 py-3 mb-4 bg-[#60A5FA] rounded-full active:bg-[#3B82F6] transition-colors"
         >
           <span className="text-3xl font-black" style={{ 
             textShadow: '2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000',
@@ -104,7 +104,7 @@ export default function Home() {
         
         <button 
           onClick={() => router.push('/login')}
-          className="w-64 py-3 bg-[#60A5FA] rounded-full"
+          className="w-64 py-3 bg-[#60A5FA] rounded-full active:bg-[#3B82F6] transition-colors"
         >
           <span className="text-3xl font-black" style={{ 
             textShadow: '2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000',

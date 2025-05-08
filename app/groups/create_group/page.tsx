@@ -157,9 +157,9 @@ export default function CreateGroup() {
           <button
             onClick={handleNext}
             disabled={loading}
-            className="bg-[#60A5FA] py-3 px-10 rounded-full"
+            className="bg-[#60A5FA] py-3 px-8 rounded-full w-64 active:bg-[#3B82F6] transition-colors"
           >
-            <span className="text-4xl font-black" style={{ 
+            <span className="text-3xl font-black" style={{ 
               textShadow: '2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000',
               color: 'white',
               fontFamily: 'Arial, sans-serif'

@@ -19,9 +19,9 @@ export default function GroupInitialization() {
         {/* Create Group Button */}
         <button 
           onClick={handleCreateGroup}
-          className="w-64 py-5 bg-[#60A5FA] rounded-full"
+          className="w-64 py-3 bg-[#60A5FA] rounded-full active:bg-[#3B82F6] transition-colors"
         >
-          <span className="text-4xl font-black" style={{ 
+          <span className="text-3xl font-black" style={{ 
             textShadow: '3px 3px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000',
             color: 'white',
             fontFamily: 'Arial, sans-serif'
@@ -42,9 +42,9 @@ export default function GroupInitialization() {
         {/* Join Group Button */}
         <button 
           onClick={handleJoinGroup}
-          className="w-64 py-5 bg-[#60A5FA] rounded-full"
+          className="w-64 py-3 bg-[#60A5FA] rounded-full active:bg-[#3B82F6] transition-colors"
         >
-          <span className="text-4xl font-black" style={{ 
+          <span className="text-3xl font-black" style={{ 
             textShadow: '3px 3px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000',
             color: 'white',
             fontFamily: 'Arial, sans-serif'
