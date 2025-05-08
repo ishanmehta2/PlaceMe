@@ -1,9 +1,17 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import Image from 'next/image'
 import { supabase } from '../../../lib/auth/supabase'
+import { DndContext, useDraggable, TouchSensor, MouseSensor, useSensor, useSensors } from '@dnd-kit/core'
+import Axis from '../../components/Axis'
+import Token from '../../components/Token'
+
+// Constants for sizing
+const AXIS_SIZE = 300
+const TOKEN_SIZE = 35
+const DRAG_SCALE = 1.2
+const DRAG_SHADOW = 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.2))'
 
 // Avatar colors for different users
 const AVATAR_COLORS = {
@@ -15,49 +23,151 @@ const AVATAR_COLORS = {
 // Hardcoded placeholder members
 const PLACEHOLDER_MEMBERS = [
   { 
-    user_id: 'placeholder-1', 
-    username: 'Bob', 
-    full_name: 'Bob Smith', 
-    avatar_url: '',
-    colorClass: 'bg-red-500'
+    user_id: 'janina', 
+    username: 'Janina', 
+    full_name: 'Janina Schmidt', 
+    avatar_url: 'https://randomuser.me/api/portraits/women/44.jpg',
+    color: '#EF4444'  // Red
   },
   { 
-    user_id: 'placeholder-2', 
-    username: 'Tim', 
-    full_name: 'Tim Johnson', 
-    avatar_url: '',
-    colorClass: 'bg-purple-500'
+    user_id: 'nils', 
+    username: 'Nils', 
+    full_name: 'Nils Forstall', 
+    avatar_url: 'https://randomuser.me/api/portraits/men/15.jpg',
+    color: '#10B981'  // Green
   },
   { 
-    user_id: 'placeholder-3', 
-    username: 'Tom', 
-    full_name: 'Tom Williams', 
-    avatar_url: '',
-    colorClass: 'bg-blue-500'
+    user_id: 'melody', 
+    username: 'Melody', 
+    full_name: 'Melody Chen', 
+    avatar_url: 'https://randomuser.me/api/portraits/women/12.jpg',
+    color: '#A855F7'  // Purple
   }
 ]
 
+interface Position {
+  x: number
+  y: number
+}
+
+function DraggableToken({ id, position, isDragging, member }: { id: string, position: Position, isDragging: boolean, member: any }) {
+  const { attributes, listeners, setNodeRef, transform } = useDraggable({
+    id,
+  })
+
+  // Calculate position with drag offset
+  let x = position.x
+  let y = position.y
+  if (transform) {
+    x += transform.x
+    y += transform.y
+    // Clamp to grid bounds, accounting for token size
+    x = Math.max(0, Math.min(x, AXIS_SIZE - TOKEN_SIZE))
+    y = Math.max(0, Math.min(y, AXIS_SIZE - TOKEN_SIZE))
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      style={{
+        position: 'absolute',
+        left: x,
+        top: y,
+        width: TOKEN_SIZE,
+        height: TOKEN_SIZE,
+        zIndex: isDragging ? 10 : 1,
+        cursor: 'grab',
+        transition: isDragging ? 'none' : 'all 0.2s ease',
+        transform: isDragging ? `scale(${DRAG_SCALE})` : 'scale(1)',
+        filter: isDragging ? DRAG_SHADOW : 'none',
+        touchAction: 'none', // Prevent default touch actions
+        transformOrigin: 'center center', // Ensure scaling happens from center
+        marginLeft: `-${TOKEN_SIZE/2}px`, // Center the token on its position
+        marginTop: `-${TOKEN_SIZE/2}px`, // Center the token on its position
+      }}
+    >
+      <Token
+        id={id}
+        name={member.username}
+        x={0}
+        y={0}
+        color={member.color}
+        size={TOKEN_SIZE}
+        imageUrl={member.avatar_url}
+        showTooltip={false}
+      />
+    </div>
+  )
+}
+
 export default function PlaceOthers() {
   const router = useRouter()
+  const gridRef = useRef<HTMLDivElement>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [groupMembers, setGroupMembers] = useState<any[]>([])
-  const [positions, setPositions] = useState<{[key: string]: {x: number, y: number}}>({})
-  const [dragInfo, setDragInfo] = useState<{dragging: boolean, userId: string | null}>({
-    dragging: false,
-    userId: null
-  })
+  const [positions, setPositions] = useState<{[key: string]: Position}>({})
+  const [activeId, setActiveId] = useState<string | null>(null)
   const [groupId, setGroupId] = useState<string | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
-  
-  // Define the axes labels
-  const AXES_LABELS = {
-    top: 'bowling',
-    bottom: 'movies',
-    left: 'pizza',
-    right: 'hot dog'
+
+  // Configure sensors
+  const sensors = useSensors(
+    useSensor(MouseSensor, {
+      activationConstraint: { distance: 5 },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 100, tolerance: 5 },
+    })
+  )
+
+  // Handle drag start
+  const handleDragStart = (event: any) => {
+    setActiveId(event.active.id)
   }
-  
+
+  // Handle drag end
+  const handleDragEnd = (event: any) => {
+    const { active, delta } = event
+    if (delta && gridRef.current) {
+      // Get the grid container (the white background div)
+      const gridContainer = gridRef.current.querySelector('div[style*="background-color: white"]')
+      if (gridContainer) {
+        const gridRect = gridContainer.getBoundingClientRect()
+        const containerRect = gridRef.current.getBoundingClientRect()
+        
+        // Calculate the offset between the container and the grid
+        const offsetX = gridRect.left - containerRect.left
+        const offsetY = gridRect.top - containerRect.top
+        
+        setPositions(prev => {
+          const userId = active.id
+          const currentPos = prev[userId] || { x: AXIS_SIZE/2, y: AXIS_SIZE/2 }
+          
+          let newX = currentPos.x + delta.x
+          let newY = currentPos.y + delta.y
+          
+          // Clamp to grid bounds, accounting for token size and offset
+          newX = Math.max(0, Math.min(newX, AXIS_SIZE - TOKEN_SIZE))
+          newY = Math.max(0, Math.min(newY, AXIS_SIZE - TOKEN_SIZE))
+          
+          return {
+            ...prev,
+            [userId]: { x: newX, y: newY }
+          }
+        })
+      }
+    }
+    setActiveId(null)
+  }
+
+  // Handle drag cancel
+  const handleDragCancel = () => {
+    setActiveId(null)
+  }
+
   // Fetch group members data
   useEffect(() => {
     const fetchData = async () => {
@@ -86,56 +196,17 @@ export default function PlaceOthers() {
         
         setGroupId(storedGroupId)
         
-        // Use placeholders instead of trying to query real members
-        // This avoids the relationship issues entirely
-        const usePlaceholders = true  // Always use placeholders for now
+        // Use placeholders for now
+        setGroupMembers(PLACEHOLDER_MEMBERS)
         
-        if (usePlaceholders) {
-          setGroupMembers(PLACEHOLDER_MEMBERS)
-          
-          // Set initial positions for placeholders
-          const initialPositions = {
-            'placeholder-1': { x: 75, y: 25 },  // Bob - top right
-            'placeholder-2': { x: 25, y: 25 },  // Tim - top left
-            'placeholder-3': { x: 50, y: 75 }   // Tom - bottom center
-          }
-          
-          setPositions(initialPositions)
-        } else {
-          // This section is commented out because it's causing the relationship error
-          // If you want to use real members later, we'll need to implement a different approach
-          
-          /*
-          // Get group members
-          const { data: members, error: membersError } = await supabase
-            .from('group_members')
-            .select('user_id')
-            .eq('group_id', storedGroupId)
-            .neq('user_id', userId) // Exclude current user
-            .limit(3)
-          
-          if (membersError) {
-            throw membersError
-          }
-          
-          if (!members || members.length === 0) {
-            // No members, use placeholders
-            setGroupMembers(PLACEHOLDER_MEMBERS)
-            
-            // Set initial positions for placeholders
-            const initialPositions = {
-              'placeholder-1': { x: 75, y: 25 },  // Bob - top right
-              'placeholder-2': { x: 25, y: 25 },  // Tim - top left
-              'placeholder-3': { x: 50, y: 75 }   // Tom - bottom center
-            }
-            
-            setPositions(initialPositions)
-          } else {
-            // Process real members
-            // ...
-          }
-          */
+        // Set initial positions for placeholders
+        const initialPositions = {
+          'janina': { x: AXIS_SIZE * 0.25, y: AXIS_SIZE * 0.25 },  // Janina - top left
+          'nils': { x: AXIS_SIZE * 0.75, y: AXIS_SIZE * 0.25 },    // Nils - top right
+          'melody': { x: AXIS_SIZE * 0.5, y: AXIS_SIZE * 0.75 }    // Melody - bottom center
         }
+        
+        setPositions(initialPositions)
       } catch (err: any) {
         console.error('Error fetching data:', err)
         setError(err.message || 'Failed to load group members')
@@ -146,64 +217,57 @@ export default function PlaceOthers() {
     
     fetchData()
   }, [router])
-  
-  // Handle grid click or drag
-  const handleGridInteraction = (e, userId) => {
-    if (!dragInfo.dragging || dragInfo.userId !== userId) return
-    
-    const grid = e.currentTarget
-    const rect = grid.getBoundingClientRect()
-    
-    // Calculate position as percentage of grid dimensions
-    const x = Math.min(Math.max(((e.clientX - rect.left) / rect.width) * 100, 0), 100)
-    const y = Math.min(Math.max(((e.clientY - rect.top) / rect.height) * 100, 0), 100)
-    
-    // Update positions
-    setPositions(prev => ({
-      ...prev,
-      [userId]: { x, y }
-    }))
-  }
 
-  // Handle mouse/touch events
-  const startDrag = (e, userId) => {
-    e.stopPropagation()
-    setDragInfo({
-      dragging: true,
-      userId
-    })
-  }
-  
-  const endDrag = () => {
-    setDragInfo({
-      dragging: false,
-      userId: null
-    })
-  }
-  
-  const onDrag = (e) => {
-    if (dragInfo.dragging && dragInfo.userId) {
-      handleGridInteraction(e, dragInfo.userId)
-    }
-  }
-  
   // Handle confirmation
-  const handleNext = () => {
-    // Save positions to session storage
-    sessionStorage.setItem('otherUsersPositions', JSON.stringify(positions))
-    router.push('/groups/place_others_confirm')
-  }
-  
-  // Get display name for a member
-  const getDisplayName = (member) => {
-    if (!member) return 'User'
+  const handleNext = async () => {
+    if (!groupId || !currentUserId) {
+      setError('Missing user or group information. Please go back and try again.')
+      return
+    }
     
-    if (member.username) {
-      return member.username
-    } else if (member.full_name) {
-      return member.full_name.split(' ')[0] // First name
-    } else {
-      return member.user_id.substring(0, 5) // Fallback
+    try {
+      // Get the group code
+      const groupCode = sessionStorage.getItem('currentGroupCode') || ''
+      
+      // Save position data for each member to the place_others table
+      for (const member of groupMembers) {
+        const userId = member.user_id
+        
+        // Skip if no position data
+        if (!positions[userId]) continue
+        
+        // Skip placeholder users for database storage
+        if (userId.startsWith('placeholder-')) continue
+        
+        // Save to the place_others table
+        const { error: saveError } = await supabase
+          .from('place_others')
+          .insert({
+            placer_user_id: currentUserId, // Current user is placing others
+            placed_user_id: userId, // User being placed
+            group_id: groupId,
+            group_code: groupCode,
+            username: member.username || '',
+            first_name: member.username, // Using username as first name for now
+            position_x: positions[userId].x,
+            position_y: positions[userId].y,
+            top_label: 'bowling',
+            bottom_label: 'movies',
+            left_label: 'pizza',
+            right_label: 'hot dog',
+            created_at: new Date().toISOString()
+          })
+        
+        if (saveError) {
+          console.error(`Error saving position for ${member.username}:`, saveError)
+        }
+      }
+      
+      // Navigate to results page
+      router.push('/groups/results')
+    } catch (err: any) {
+      console.error('Error saving positions:', err)
+      setError(err.message || 'Failed to save user positions')
     }
   }
 
@@ -236,105 +300,40 @@ export default function PlaceOthers() {
         )}
         
         <div className="space-y-6">
-          {/* Grid with group members */}
-          <div 
-            className="relative w-full aspect-square bg-white border-2 border-black rounded-lg mb-8"
-            onMouseMove={onDrag}
-            onMouseUp={endDrag}
-            onMouseLeave={endDrag}
-            onTouchMove={onDrag}
-            onTouchEnd={endDrag}
+          <DndContext 
+            sensors={sensors} 
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            onDragCancel={handleDragCancel}
           >
-            {/* Grid lines */}
-            <div className="absolute top-0 left-1/2 h-full w-0.5 bg-black -translate-x-1/2"></div>
-            <div className="absolute top-1/2 left-0 w-full h-0.5 bg-black -translate-y-1/2"></div>
-            
-            {/* Labels */}
-            <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-pink-200 px-4 py-1 rounded-lg text-sm font-bold">
-              {AXES_LABELS.top}
+            <div ref={gridRef} className="relative">
+              <Axis
+                labels={{
+                  top: 'bowling',
+                  bottom: 'movies',
+                  left: 'pizza',
+                  right: 'hot dog'
+                }}
+                labelColors={{
+                  top: '#FECACA',
+                  bottom: '#DCFCE7',
+                  left: '#FEF3C7',
+                  right: '#DBEAFE',
+                }}
+                size={AXIS_SIZE}
+              >
+                {groupMembers.map((member) => (
+                  <DraggableToken
+                    key={member.user_id}
+                    id={member.user_id}
+                    position={positions[member.user_id] || { x: AXIS_SIZE/2, y: AXIS_SIZE/2 }}
+                    isDragging={activeId === member.user_id}
+                    member={member}
+                  />
+                ))}
+              </Axis>
             </div>
-            
-            <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-green-200 px-4 py-1 rounded-lg text-sm font-bold">
-              {AXES_LABELS.bottom}
-            </div>
-            
-            <div className="absolute -left-8 top-1/2 -translate-y-1/2 -rotate-90 bg-pink-200 px-4 py-1 rounded-lg text-sm font-bold">
-              {AXES_LABELS.left}
-            </div>
-            
-            <div className="absolute -right-8 top-1/2 -translate-y-1/2 rotate-90 bg-blue-200 px-4 py-1 rounded-lg text-sm font-bold">
-              {AXES_LABELS.right}
-            </div>
-            
-            {/* Member Avatars */}
-            {groupMembers.map((member, index) => {
-              const userId = member.user_id
-              const position = positions[userId] || { x: 50, y: 50 }
-              const displayName = getDisplayName(member)
-              const colorClass = member.colorClass || AVATAR_COLORS[index % 3]
-              
-              return (
-                <div 
-                  key={userId}
-                  className="absolute flex flex-col items-center cursor-grab z-10"
-                  style={{ 
-                    left: `${position.x}%`, 
-                    top: `${position.y}%`,
-                    transform: 'translate(-50%, -50%)'
-                  }}
-                  onMouseDown={(e) => startDrag(e, userId)}
-                  onTouchStart={(e) => startDrag(e, userId)}
-                >
-                  <div className={`w-14 h-14 rounded-full ${colorClass} flex items-center justify-center border-2 border-white overflow-hidden`}>
-                    {member.avatar_url ? (
-                      <Image 
-                        src={member.avatar_url} 
-                        alt={displayName}
-                        width={56}
-                        height={56}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="text-white text-2xl font-bold">{displayName.charAt(0)}</div>
-                    )}
-                  </div>
-                  <div className="mt-1 font-bold text-sm">
-                    {displayName}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-          
-          {/* Member List at Bottom */}
-          <div className="flex justify-center space-x-4 mb-4">
-            {groupMembers.map((member, index) => {
-              const userId = member.user_id
-              const displayName = getDisplayName(member)
-              const colorClass = member.colorClass || AVATAR_COLORS[index % 3]
-              
-              return (
-                <div key={userId} className="flex flex-col items-center">
-                  <div className={`w-14 h-14 rounded-full ${colorClass} flex items-center justify-center border-2 border-white overflow-hidden`}>
-                    {member.avatar_url ? (
-                      <Image 
-                        src={member.avatar_url} 
-                        alt={displayName}
-                        width={56}
-                        height={56}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="text-white text-2xl font-bold">{displayName.charAt(0)}</div>
-                    )}
-                  </div>
-                  <div className="mt-1 font-bold text-sm">
-                    {displayName}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+          </DndContext>
         </div>
         
         {/* Next Button */}

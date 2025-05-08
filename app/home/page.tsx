@@ -3,61 +3,194 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/auth/supabase'
+import Axis from '../components/Axis'
 
 interface GroupMember {
   id: string
   name: string
   avatar_url?: string
+  avatarUrl?: string
+  imageUrl?: string
   position?: {
     x: number
     y: number
   }
+  color?: string
+  borderColor?: string
 }
 
 interface DailyPlacement {
   date: string
   members: GroupMember[]
+  labels: {
+    top: string
+    bottom: string
+    left: string
+    right: string
+    labelColors: {
+      top: string
+      bottom: string
+      left: string
+      right: string
+    }
+  }
 }
 
 export default function Home() {
   const router = useRouter()
   const [activeGroup, setActiveGroup] = useState<string | null>(null)
   const [groupName, setGroupName] = useState('')
-  const [currentDate, setCurrentDate] = useState(new Date())
-  const [previousDate, setPreviousDate] = useState(new Date())
   const [dailyPlacements, setDailyPlacements] = useState<DailyPlacement[]>([])
   const [loading, setLoading] = useState(true)
   
   // Mock data for the frontend demo
   useEffect(() => {
-    const today = new Date()
-    const yesterday = new Date(today)
-    yesterday.setDate(yesterday.getDate() - 1)
+    // Create dates from May 4th to May 7th
+    const dates = Array.from({ length: 4 }, (_, i) => {
+      const date = new Date(2024, 4, 4 + i)
+      return date
+    }).reverse() // Reverse to get most recent first
     
-    setCurrentDate(today)
-    setPreviousDate(yesterday)
+    // Different positions for each day
+    const dailyPositions = [
+      // May 7th positions
+      [
+        { x: -0.6, y: -0.4 },
+        { x: 0.6, y: -0.6 },
+        { x: -0.6, y: 0.6 },
+        { x: 0.4, y: 0.4 },
+        { x: 0, y: 0 }
+      ],
+      // May 6th positions
+      [
+        { x: -0.4, y: -0.2 },
+        { x: -0.9, y: -0.4 },
+        { x: -0.2, y: 0.4 },
+        { x: 0.2, y: 0.2 },
+        { x: 0, y: 0 }
+      ],
+      // May 5th positions
+      [
+        { x: -0.2, y: 0 },
+        { x: 0.2, y: -0.2 },
+        { x: 0, y: 0.2 },
+        { x: 0, y: 0 },
+        { x: -0.4, y: -0.4 }
+      ],
+      // May 4th positions
+      [
+        { x: 0, y: 0.2 },
+        { x: 0, y: -0.2 },
+        { x: 0.2, y: 0 },
+        { x: -0.2, y: 0 },
+        { x: 0.4, y: -0.4 }
+      ]
+    ]
     
-    // Mock group members with positions
-    const mockPlacements = [
+    // Different axis labels for each day
+    const dailyLabels = [
+      // May 7th labels
       {
-        date: formatDate(today),
-        members: [
-          { id: '1', name: 'Samantha', avatar_url: '/avatars/samantha.jpg', position: { x: 0.2, y: 0.3 } },
-          { id: '2', name: 'Nils', avatar_url: '/avatars/nils.jpg', position: { x: 0.8, y: 0.2 } },
-          { id: '3', name: 'Ishan', avatar_url: '/avatars/ishan.jpg', position: { x: 0.2, y: 0.8 } },
-          { id: '4', name: 'Janina', avatar_url: '/avatars/janina.jpg', position: { x: 0.7, y: 0.7 } }
-        ]
+        top: 'Adventurous',
+        bottom: 'Cautious',
+        left: 'Follower',
+        right: 'Leader',
+        labelColors: {
+          top: 'rgba(251, 207, 232, 0.95)', // Pink
+          bottom: 'rgba(167, 243, 208, 0.95)', // Green
+          left: 'rgba(221, 214, 254, 0.95)', // Purple
+          right: 'rgba(253, 230, 138, 0.95)' // Yellow
+        }
       },
+      // May 6th labels
       {
-        date: formatDate(yesterday),
-        members: [
-          { id: '1', name: 'Samantha', avatar_url: '/avatars/samantha.jpg', position: { x: 0.2, y: 0.5 } },
-          { id: '2', name: 'Nils', avatar_url: '/avatars/nils.jpg', position: { x: 0.8, y: 0.3 } },
-          { id: '3', name: 'Ishan', avatar_url: '/avatars/ishan.jpg', position: { x: 0.2, y: 0.8 } },
-          { id: '4', name: 'Janina', avatar_url: '/avatars/janina.jpg', position: { x: 0.6, y: 0.8 } }
-        ]
+        top: 'Creative',
+        bottom: 'Practical',
+        left: 'Analytical',
+        right: 'Intuitive',
+        labelColors: {
+          top: 'rgba(167, 243, 208, 0.95)', // Green
+          bottom: 'rgba(251, 207, 232, 0.95)', // Pink
+          left: 'rgba(253, 230, 138, 0.95)', // Yellow
+          right: 'rgba(221, 214, 254, 0.95)' // Purple
+        }
+      },
+      // May 5th labels
+      {
+        top: 'Extrovert',
+        bottom: 'Introvert',
+        left: 'Planner',
+        right: 'Spontaneous',
+        labelColors: {
+          top: 'rgba(253, 230, 138, 0.95)', // Yellow
+          bottom: 'rgba(221, 214, 254, 0.95)', // Purple
+          left: 'rgba(251, 207, 232, 0.95)', // Pink
+          right: 'rgba(167, 243, 208, 0.95)' // Green
+        }
+      },
+      // May 4th labels
+      {
+        top: 'Kinky',
+        bottom: 'Vanilla',
+        left: 'Sub',
+        right: 'Dom',
+        labelColors: {
+          top: 'rgba(221, 214, 254, 0.95)', // Purple
+          bottom: 'rgba(253, 230, 138, 0.95)', // Yellow
+          left: 'rgba(167, 243, 208, 0.95)', // Green
+          right: 'rgba(251, 207, 232, 0.95)' // Pink
+        }
       }
     ]
+
+    // Define member data with consistent colors and images
+    const members = [
+      {
+        id: '1',
+        name: 'Samantha',
+        color: '#A855F7', // Purple
+        borderColor: '#A855F7',
+        imageUrl: 'https://i.pravatar.cc/150?img=1'
+      },
+      {
+        id: '2',
+        name: 'Nils',
+        color: '#EF4444', // Red
+        borderColor: '#EF4444',
+        imageUrl: 'https://i.pravatar.cc/150?img=2'
+      },
+      {
+        id: '3',
+        name: 'Ishan',
+        color: '#3B82F6', // Blue
+        borderColor: '#3B82F6',
+        imageUrl: 'https://i.pravatar.cc/150?img=3'
+      },
+      {
+        id: '4',
+        name: 'Janina',
+        color: '#10B981', // Green
+        borderColor: '#10B981',
+        imageUrl: 'https://i.pravatar.cc/150?img=4'
+      },
+      {
+        id: '5',
+        name: 'Melody',
+        color: '#F59E42', // Orange
+        borderColor: '#F59E42',
+        imageUrl: 'https://i.pravatar.cc/150?img=5'
+      }
+    ]
+    
+    // Mock group members with positions
+    const mockPlacements = dates.map((date, index) => ({
+      date: formatDate(date),
+      members: members.map((member, memberIndex) => ({
+        ...member,
+        position: dailyPositions[index][memberIndex]
+      })),
+      labels: dailyLabels[index]
+    }))
     
     setDailyPlacements(mockPlacements)
     setGroupName('Fun Group')
@@ -110,93 +243,32 @@ export default function Home() {
   
   return (
     <main className="flex min-h-screen flex-col items-center p-4 bg-[#FFF8E1]">
-      {dailyPlacements.map((placement, index) => (
-        <div key={placement.date} className="w-full max-w-md mb-12">
-          <h2 className="text-3xl font-black mb-2" style={{ fontFamily: 'Arial, sans-serif' }}>
-            {index === 0 ? `Monday, May 5th` : `Sunday, May 4th`}
+      {dailyPlacements.map((placement) => (
+        <div key={placement.date} className="w-full max-w-[430px] mb-8">
+          <h2 className="text-2xl font-black mb-2" style={{ fontFamily: 'Arial, sans-serif' }}>
+            {placement.date}
           </h2>
           
-          <div className="relative border-4 border-black rounded-lg bg-white aspect-square">
-            {/* Grid */}
-            <div className="absolute top-0 left-0 w-full h-full bg-blue-100/40 rounded-lg overflow-hidden">
-              {/* Horizontal line */}
-              <div className="absolute top-1/2 left-0 w-full h-1 bg-black"></div>
-              
-              {/* Vertical line */}
-              <div className="absolute top-0 left-1/2 w-1 h-full bg-black"></div>
-              
-              {/* Top labels */}
-              <div className="absolute top-0 left-0 w-full flex justify-center">
-                <div className="text-2xl font-bold py-2">Kinky</div>
-              </div>
-              
-              {/* Bottom labels */}
-              <div className="absolute bottom-0 left-0 w-full flex justify-center">
-                <div className="text-2xl font-bold py-2">Vanilla</div>
-              </div>
-              
-              {/* Left labels */}
-              <div className="absolute top-0 left-0 h-full flex flex-col justify-center items-center">
-                <div 
-                  className="text-2xl font-bold px-2 transform -rotate-90"
-                  style={{ fontFamily: 'Arial, sans-serif' }}
-                >
-                  Sub
-                </div>
-              </div>
-              
-              {/* Right labels */}
-              <div className="absolute top-0 right-0 h-full flex flex-col justify-center items-center">
-                <div 
-                  className="text-2xl font-bold px-2 transform rotate-90"
-                  style={{ fontFamily: 'Arial, sans-serif' }}
-                >
-                  Dom
-                </div>
-              </div>
-              
-              {/* User avatars */}
-              {placement.members.map(member => (
-                <div 
-                  key={member.id}
-                  className={`absolute w-12 h-12 rounded-full border-2 ${getBorderColor(member.id)} ${getMemberColor(member.id)} flex items-center justify-center`}
-                  style={{ 
-                    left: `calc(${member.position?.x || 0.5} * 100% - 1.5rem)`,
-                    top: `calc(${member.position?.y || 0.5} * 100% - 1.5rem)`,
-                    fontFamily: 'Arial, sans-serif'
-                  }}
-                >
-                  {member.avatar_url ? (
-                    <img 
-                      src={`https://randomuser.me/api/portraits/${parseInt(member.id) % 2 === 0 ? 'men' : 'women'}/${parseInt(member.id) + 10}.jpg`} 
-                      alt={member.name}
-                      className="w-11 h-11 rounded-full object-cover"
-                    />
-                  ) : (
-                    <div className="text-white font-bold">
-                      {member.name.substring(0, 2)}
-                    </div>
-                  )}
-                </div>
-              ))}
-              
-              {/* User names */}
-              {placement.members.map(member => (
-                <div 
-                  key={`name-${member.id}`}
-                  className="absolute text-xs text-center"
-                  style={{ 
-                    left: `calc(${member.position?.x || 0.5} * 100% - 1.5rem)`,
-                    top: `calc(${member.position?.y || 0.5} * 100% + 1.5rem)`,
-                    width: '3rem',
-                    fontFamily: 'Arial, sans-serif'
-                  }}
-                >
-                  {member.name}
-                </div>
-              ))}
-            </div>
-          </div>
+          <Axis
+            labels={{
+              top: placement.labels.top,
+              bottom: placement.labels.bottom,
+              left: placement.labels.left,
+              right: placement.labels.right
+            }}
+            labelColors={placement.labels.labelColors}
+            size={300}
+            tokenSize={36}
+            tokens={placement.members.map(member => ({
+              id: member.id,
+              name: member.name,
+              x: member.position?.x || 0.5,
+              y: member.position?.y || 0.5,
+              color: member.color,
+              borderColor: member.borderColor,
+              imageUrl: member.imageUrl
+            }))}
+          />
         </div>
       ))}
       

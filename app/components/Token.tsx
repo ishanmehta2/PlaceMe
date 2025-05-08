@@ -1,0 +1,73 @@
+"use client"
+import React from 'react'
+
+export interface TokenProps {
+  id: string
+  name: string
+  x: number // -1 to 1
+  y: number // -1 to 1
+  color?: string
+  size?: number
+  showTooltip?: boolean
+  onClick?: () => void
+  className?: string
+  imageUrl?: string
+}
+
+export default function Token({
+  id,
+  name,
+  x,
+  y,
+  color = '#4F46E5',
+  size = 56,
+  showTooltip = true,
+  onClick,
+  className = '',
+  imageUrl,
+}: TokenProps) {
+  const position = {
+    left: `${50 + x * 45}%`,
+    top: `${50 - y * 45}%`,
+  }
+  const border = Math.max(4, Math.round(size * 0.13)) // 13% of size, min 4px
+  const fontSize = Math.max(14, Math.round(size * 0.36)) // 36% of size, min 14px
+  const imageSize = size - border * 2
+
+  return (
+    <div
+      className={`absolute flex flex-col items-center ${className}`}
+      style={{ ...position, zIndex: 2 }}
+    >
+      <div
+        className="flex items-center justify-center"
+        style={{
+          width: size,
+          height: size,
+          backgroundColor: '#fffbe6',
+          borderRadius: '50%',
+          border: `${border}px solid ${color}`,
+          boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+          overflow: 'hidden',
+          cursor: onClick ? 'pointer' : 'default',
+        }}
+        title={showTooltip ? name : undefined}
+        onClick={onClick}
+      >
+        {imageUrl ? (
+          <img
+            src={imageUrl}
+            alt={name}
+            style={{ width: imageSize, height: imageSize, objectFit: 'cover', borderRadius: '50%' }}
+          />
+        ) : null}
+      </div>
+      <div
+        className="mt-1 text-center"
+        style={{ fontWeight: 600, fontSize, color: '#222', textShadow: '0 1px 2px #fff' }}
+      >
+        {name}
+      </div>
+    </div>
+  )
+} 

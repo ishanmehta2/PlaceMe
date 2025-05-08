@@ -1,4 +1,5 @@
 import React from 'react'
+import Token, { TokenProps } from './Token'
 
 interface AxisProps {
   labels: {
@@ -15,7 +16,9 @@ interface AxisProps {
   }
   backgroundColor?: string
   size?: number
+  tokenSize?: number
   children?: React.ReactNode
+  tokens?: TokenProps[]
 }
 
 export default function Axis({
@@ -23,7 +26,9 @@ export default function Axis({
   labelColors = {},
   backgroundColor = '#E0E7FF',
   size = 300,
+  tokenSize = 35,
   children,
+  tokens = [],
 }: AxisProps) {
   // Padding from edge for labels
   const pad = Math.round(size * 0.06)
@@ -31,7 +36,7 @@ export default function Axis({
     borderRadius: '8px',
     boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
     padding: '4px 12px',
-    fontSize: Math.round(size * 0.11),
+    fontSize: Math.max(12, Math.round(size * 0.07)), // 7% of size, min 12px
     fontWeight: 800,
     pointerEvents: 'none' as const,
     userSelect: 'none' as const,
@@ -78,6 +83,16 @@ export default function Axis({
             zIndex: 1,
           }}
         />
+        
+        {/* Tokens */}
+        {tokens.map((token) => (
+          <Token
+            key={token.id}
+            {...token}
+            size={tokenSize}
+          />
+        ))}
+        
         {/* Children (draggables, etc.) */}
         {children}
       </div>
