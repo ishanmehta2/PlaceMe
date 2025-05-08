@@ -247,8 +247,10 @@ export default function Results() {
   const randomizedDefaultPositions = useMemo(() => {
     // Use sessionStorage to persist positions for the session
     const key = 'defaultUserPositions'
-    const stored = sessionStorage.getItem(key)
-    if (stored) return JSON.parse(stored)
+    if (typeof window !== 'undefined') {
+      const stored = sessionStorage.getItem(key)
+      if (stored) return JSON.parse(stored)
+    }
     // Otherwise, generate new random positions
     const positions = {
       janina: { x: randInRange(10, 35), y: randInRange(10, 35) }, // Top left
@@ -257,7 +259,9 @@ export default function Results() {
       nils: { x: randInRange(65, 90), y: randInRange(65, 90) }, // Bottom right
       melody: { x: randInRange(40, 60), y: randInRange(40, 60) }, // Center
     }
-    sessionStorage.setItem(key, JSON.stringify(positions))
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem(key, JSON.stringify(positions))
+    }
     return positions
   }, [])
 
@@ -615,7 +619,6 @@ export default function Results() {
                   value={newComment}
                   onChange={e => setNewComment(e.target.value)}
                   onKeyDown={handleInputKeyDown}
-                  autoFocus
                   disabled={!selectedToken}
                 />
                 <button
