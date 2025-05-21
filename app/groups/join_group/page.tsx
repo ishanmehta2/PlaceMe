@@ -121,7 +121,7 @@ export default function JoinGroup() {
           group_id: group.id,
           user_id: userId,
           role: 'member',
-          created_at: new Date().toISOString()
+          joined_at: new Date().toISOString()
         })
       
       if (joinError) throw joinError
