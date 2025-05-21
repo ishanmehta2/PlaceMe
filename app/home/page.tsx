@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/auth/supabase'
 import Axis from '../components/Axis'
+import Menu from '../components/Menu'
 
 interface GroupMember {
   id: string
@@ -383,21 +384,20 @@ export default function Home() {
   
   if (loading) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-[#FFF8E1]">
+      <main className="flex min-h-screen items-center justify-center bg-[#FFF8E1] p-4">
         <div className="text-2xl">Loading...</div>
       </main>
     )
   }
-  
+
   return (
     <main className="flex min-h-screen flex-col items-center p-0 bg-[#FFF8E1] relative">
-      {/* Sticky Header */}
-      <header className="sticky top-0 left-0 w-full z-20 bg-[#FFF8E1] flex items-center h-20 border-b-2 border-black">
+      {/* Header */}
+      <header className="sticky top-0 w-full z-20 bg-[#FFF8E1] flex items-center h-20 border-b-2 border-black">
         <button
-          className="ml-6 flex flex-col justify-center items-center w-12 h-12 bg-[#FFF8E1] rounded-2xl shadow-lg border-2 border-black focus:outline-none"
+          className="ml-6 w-12 h-12 rounded-2xl shadow-lg border-2 border-black flex flex-col justify-center items-center"
           onClick={() => setMenuOpen(true)}
           aria-label="Open menu"
-          style={{ fontFamily: 'Arial Black, Arial, sans-serif' }}
         >
           <span className="block w-7 h-1 bg-black rounded mb-1"></span>
           <span className="block w-7 h-1 bg-black rounded mb-1"></span>
@@ -410,10 +410,8 @@ export default function Home() {
         </div>
         <div className="relative mr-6">
           <button
-            className="flex items-center justify-center w-12 h-12 bg-[#FFF8E1] rounded-2xl shadow-lg border-2 border-black focus:outline-none text-4xl font-black text-black"
-            onClick={() => setPlusDropdownOpen((open) => !open)}
-            aria-label="Open plus menu"
-            style={{ fontFamily: 'Arial Black, Arial, sans-serif' }}
+            className="w-12 h-12 text-4xl font-black border-2 border-black rounded-2xl shadow-lg"
+            onClick={() => setPlusDropdownOpen(prev => !prev)}
           >
             +
           </button>
@@ -503,7 +501,7 @@ export default function Home() {
             className="text-4xl font-black mb-6 cursor-pointer hover:text-gray-700"
             onClick={() => {
               setMenuOpen(false);
-              router.push('/profile');
+              router.push('/groups/profile');
             }}
           >
             View Profile
