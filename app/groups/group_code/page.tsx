@@ -85,15 +85,17 @@ export default function GroupCode() {
         {/* Header with Create Group text */}
         <div className="bg-[#FFE082] py-4 px-4 rounded-full w-full mx-auto mb-8">
           <h1 className="text-4xl font-black text-center" style={{ 
-            textShadow: '3px 3px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000',
-            color: 'white',
-            fontFamily: 'Arial, sans-serif'
+              textShadow: '3px 3px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000',
+              color: 'white',
+              fontFamily: 'Arial, sans-serif'
           }}>
-            Create Group
+          Invite to {groupName || '...'}
           </h1>
         </div>
-        
-        {/* Step indicator */}
+      
+
+
+        {/*
         <div className="bg-[#FFE082] py-2 px-6 rounded-full w-fit mb-6">
           <h2 className="text-2xl font-bold" style={{ 
             fontFamily: 'Arial, sans-serif'
@@ -107,7 +109,8 @@ export default function GroupCode() {
             {error}
           </div>
         )}
-        
+        */}
+
         <div className="space-y-6">
           {/* Group Code Display */}
           <div className="space-y-2">
