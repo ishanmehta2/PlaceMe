@@ -5,10 +5,16 @@ import { supabase } from '../../../lib/auth/supabase'
 import { useRouter } from 'next/navigation'
 import Menu from '../../components/Menu'
 
+interface UserGroup {
+  id: string
+  name: string
+  role: string
+}
+
 export default function Profile() {
   const router = useRouter()
   const [profile, setProfile] = useState<any>(null)
-  const [groups, setGroups] = useState<string[]>([])
+  const [groups, setGroups] = useState<UserGroup[]>([])
   const [loading, setLoading] = useState(true)
   const [menuOpen, setMenuOpen] = useState(false)
 
@@ -24,6 +30,7 @@ export default function Profile() {
         return
       }
 
+      // Fetch profile data
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -39,15 +46,55 @@ export default function Profile() {
         })
       }
 
-      const { data: groupData, error: groupError } = await supabase
-        .from('user_groups')
-        .select('group_name')
-        .eq('user_id', user.id)
-
-      if (groupError) {
-        console.error('Error fetching groups:', groupError)
-      } else {
-        setGroups(groupData?.map((g) => g.group_name) || [])
+      // Fetch groups using the same logic as your home page
+      try {
+        // Fetch groups the user is a member of using a join query (same as home page)
+        const { data: groupMemberships, error: groupsError } = await supabase
+          .from('group_members')
+          .select(`
+            id,
+            role,
+            joined_at,
+            group_id
+          `)
+          .eq('user_id', user.id)
+          
+        if (groupsError) {
+          console.error("Error fetching group memberships:", groupsError)
+          setGroups([])
+        } else {
+          // Get the groups details
+          const groupIds = groupMemberships.map(membership => membership.group_id)
+          
+          if (groupIds.length === 0) {
+            setGroups([])
+          } else {
+            const { data: groupsData, error: groupDetailsError } = await supabase
+              .from('groups')
+              .select('id, name, invite_code, settings, created_at')
+              .in('id', groupIds)
+            
+            if (groupDetailsError) {
+              console.error("Error fetching group details:", groupDetailsError)
+              setGroups([])
+            } else {
+              // Combine the group details with membership info (same as home page)
+              const formattedGroups = groupsData.map(group => {
+                const membership = groupMemberships.find(m => m.group_id === group.id)
+                return {
+                  id: group.id,
+                  name: group.name,
+                  role: membership?.role || 'member'
+                }
+              })
+              
+              setGroups(formattedGroups)
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Unexpected error fetching groups:", error)
+        setGroups([])
       }
 
       setLoading(false)
@@ -64,7 +111,7 @@ export default function Profile() {
       <Menu
         open={menuOpen}
         onClose={() => setMenuOpen(false)}
-        groupName={groups[0] || 'My Group'}
+        groupName={groups[0]?.name || 'My Group'}
       />
 
       <button
@@ -105,11 +152,18 @@ export default function Profile() {
 
           <div className="mt-4">
             <div className="text-xl font-bold">Groups:</div>
-            <ul className="list-disc list-inside text-lg">
-              {groups.map((g, i) => (
-                <li key={i}>{g}</li>
-              ))}
-            </ul>
+            {groups.length > 0 ? (
+              <ul className="list-disc list-inside text-lg space-y-1">
+                {groups.map((group) => (
+                  <li key={group.id} className="flex justify-between items-center">
+                    <span>{group.name}</span>
+                    <span className="text-sm text-gray-600 ml-2">({group.role})</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="text-lg text-gray-600">No groups yet</div>
+            )}
           </div>
         </div>
       </div>
