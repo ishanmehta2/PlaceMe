@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../../lib/auth/supabase'
 import { useRouter } from 'next/navigation'
-import Menu from '../../components/Menu'
 
 interface UserGroup {
   id: string
@@ -16,7 +15,6 @@ export default function Profile() {
   const [profile, setProfile] = useState<any>(null)
   const [groups, setGroups] = useState<UserGroup[]>([])
   const [loading, setLoading] = useState(true)
-  const [menuOpen, setMenuOpen] = useState(false)
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -46,9 +44,8 @@ export default function Profile() {
         })
       }
 
-      // Fetch groups using the same logic as your home page
+      // Fetch groups
       try {
-        // Fetch groups the user is a member of using a join query (same as home page)
         const { data: groupMemberships, error: groupsError } = await supabase
           .from('group_members')
           .select(`
@@ -58,14 +55,13 @@ export default function Profile() {
             group_id
           `)
           .eq('user_id', user.id)
-          
+
         if (groupsError) {
-          console.error("Error fetching group memberships:", groupsError)
+          console.error('Error fetching group memberships:', groupsError)
           setGroups([])
         } else {
-          // Get the groups details
-          const groupIds = groupMemberships.map(membership => membership.group_id)
-          
+          const groupIds = groupMemberships.map((membership) => membership.group_id)
+
           if (groupIds.length === 0) {
             setGroups([])
           } else {
@@ -73,27 +69,26 @@ export default function Profile() {
               .from('groups')
               .select('id, name, invite_code, settings, created_at')
               .in('id', groupIds)
-            
+
             if (groupDetailsError) {
-              console.error("Error fetching group details:", groupDetailsError)
+              console.error('Error fetching group details:', groupDetailsError)
               setGroups([])
             } else {
-              // Combine the group details with membership info (same as home page)
-              const formattedGroups = groupsData.map(group => {
-                const membership = groupMemberships.find(m => m.group_id === group.id)
+              const formattedGroups = groupsData.map((group) => {
+                // role is still fetched, but we won't display it now
                 return {
                   id: group.id,
                   name: group.name,
-                  role: membership?.role || 'member'
+                  role: '', // or you can keep role: membership?.role || 'member' if needed internally
                 }
               })
-              
+
               setGroups(formattedGroups)
             }
           }
         }
       } catch (error) {
-        console.error("Unexpected error fetching groups:", error)
+        console.error('Unexpected error fetching groups:', error)
         setGroups([])
       }
 
@@ -107,18 +102,13 @@ export default function Profile() {
 
   return (
     <main className="flex min-h-screen flex-col items-center p-0 bg-[#FFF8E1]">
-      {/* Slide-out Menu */}
-      <Menu
-        open={menuOpen}
-        onClose={() => setMenuOpen(false)}
-        groupName={groups[0]?.name || 'My Group'}
-      />
-
+      {/* Back arrow button */}
       <button
-        onClick={() => setMenuOpen(true)}
+        onClick={() => router.push('/home')}
         className="absolute top-4 left-4 text-3xl font-black z-50"
+        aria-label="Go back home"
       >
-        ☰
+        ←
       </button>
 
       {/* Profile Card */}
@@ -155,10 +145,7 @@ export default function Profile() {
             {groups.length > 0 ? (
               <ul className="list-disc list-inside text-lg space-y-1">
                 {groups.map((group) => (
-                  <li key={group.id} className="flex justify-between items-center">
-                    <span>{group.name}</span>
-                    <span className="text-sm text-gray-600 ml-2">({group.role})</span>
-                  </li>
+                  <li key={group.id}>{group.name}</li>
                 ))}
               </ul>
             ) : (

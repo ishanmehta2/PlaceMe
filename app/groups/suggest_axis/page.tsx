@@ -42,7 +42,17 @@ export default function SuggestAxis() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center pt-8 p-4 bg-[#FFF8E1]">
+    <main className="relative flex min-h-screen flex-col items-center pt-8 p-4 bg-[#FFF8E1]">
+      {/* Arrow back button top-left absolute */}
+      <button
+        onClick={() => router.push('/home')}
+        aria-label="Go back to home"
+        className="absolute top-4 left-4 text-4xl font-black text-black hover:text-gray-700 transition"
+        style={{ fontFamily: 'Arial Black, Arial, sans-serif', lineHeight: 1 }}
+      >
+        ←
+      </button>
+
       <div className="w-full max-w-sm">
         <div className="bg-[#FFE082] py-4 px-4 rounded-full w-full mx-auto mb-8">
           <h1 className="text-4xl font-black text-center" style={{

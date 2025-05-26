@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/auth/supabase'
 import Axis from '../components/Axis'
-import Menu from '../components/Menu'
 
 interface GroupMember {
   id: string
@@ -42,6 +41,7 @@ interface UserGroup {
   name: string
   invite_code: string
   role: string
+  created_by?: string // To know the creator of the group
 }
 
 export default function Home() {
@@ -54,6 +54,7 @@ export default function Home() {
   const [plusDropdownOpen, setPlusDropdownOpen] = useState(false)
   const [userGroups, setUserGroups] = useState<UserGroup[]>([])
   const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null)
+  const [activeGroupCreator, setActiveGroupCreator] = useState<string | null>(null) // Creator ID
   
   // Different positions for each day (reused from original code)
   const dailyPositions = [
@@ -168,95 +169,88 @@ export default function Home() {
     }
   ]
 
-  // Fetch user and their groups on component mount
-  useEffect(() => {
+   // Fetch user and their groups on mount
+   useEffect(() => {
     const fetchUserAndGroups = async () => {
       setLoading(true);
-      
+
       try {
-        // Get the current user
+        // Get current user
         const { data: { user }, error: userError } = await supabase.auth.getUser();
-        
+
         if (userError || !user) {
           console.error("Error fetching user:", userError);
-          router.push('/login'); // Redirect to login if no user
+          router.push('/login');
           return;
         }
-        
+
         setCurrentUser(user);
-        
-        // Fetch groups the user is a member of using a join query
+
+        // Get groups where the user is a member
         const { data: groupMemberships, error: groupsError } = await supabase
           .from('group_members')
-          .select(`
-            id,
-            role,
-            joined_at,
-            group_id
-          `)
+          .select('group_id, role')
           .eq('user_id', user.id);
-          
+
         if (groupsError) {
           console.error("Error fetching group memberships:", groupsError);
           return;
         }
-        
-        // Get the groups details
-        const groupIds = groupMemberships.map(membership => membership.group_id);
-        
-        // If no groups, return early
+
+        const groupIds = groupMemberships.map(m => m.group_id);
+
         if (groupIds.length === 0) {
           setUserGroups([]);
           setLoading(false);
           return;
         }
-        
+
+        // Fetch groups with created_by field
         const { data: groupsData, error: groupDetailsError } = await supabase
           .from('groups')
-          .select('id, name, invite_code, settings, created_at')
+          .select('id, name, invite_code, created_by')
           .in('id', groupIds);
-        
+
         if (groupDetailsError) {
           console.error("Error fetching group details:", groupDetailsError);
           return;
         }
-        
-        // Combine the group details with membership info
+
+        // Combine groups with membership roles
         const formattedGroups = groupsData.map(group => {
           const membership = groupMemberships.find(m => m.group_id === group.id);
           return {
             id: group.id,
             name: group.name,
             invite_code: group.invite_code,
-            role: membership?.role || 'member'
+            role: membership?.role || 'member',
+            created_by: group.created_by
           };
         });
-        
+
         setUserGroups(formattedGroups);
-        
-        // If there are groups, set the active group to the first one
+
         if (formattedGroups.length > 0) {
-          setActiveGroup(formattedGroups[0].id);
-          setGroupName(formattedGroups[0].name);
-          
-          // Now fetch daily placements for the active group
-          await fetchDailyPlacements(formattedGroups[0].id);
+          const firstGroup = formattedGroups[0];
+          setActiveGroup(firstGroup.id);
+          setGroupName(firstGroup.name);
+          setActiveGroupCreator(firstGroup.created_by || null);
+          await fetchDailyPlacements(firstGroup.id);
         }
-        
+
       } catch (error) {
         console.error("Unexpected error:", error);
       } finally {
         setLoading(false);
       }
     };
-    
+
     fetchUserAndGroups();
   }, [router]);
-  
-  // Function to fetch daily placements for a group
+
+  // Fetch daily placements for a group
   const fetchDailyPlacements = async (groupId: string) => {
     try {
-      // Fetch group members
       const { data: membersData, error: membersError } = await supabase
         .from('group_members')
         .select('id, role, user_id, joined_at')
@@ -267,7 +261,6 @@ export default function Home() {
         return;
       }
       
-      // Get user profiles for the members
       const memberUserIds = membersData.map(member => member.user_id);
       
       const { data: profiles, error: profilesError } = await supabase
@@ -280,16 +273,8 @@ export default function Home() {
         return;
       }
       
-      // Colors for members
-      const memberColors = [
-        '#A855F7', // Purple
-        '#EF4444', // Red
-        '#3B82F6', // Blue
-        '#10B981', // Green
-        '#F59E42'  // Orange
-      ];
+      const memberColors = ['#A855F7', '#EF4444', '#3B82F6', '#10B981', '#F59E42'];
       
-      // Transform member data
       const groupMembers = membersData.map((member, index) => {
         const profile = profiles.find(p => p.id === member.user_id);
         return {
@@ -302,10 +287,7 @@ export default function Home() {
         };
       });
       
-      // In a real app, you would fetch actual placements data
-      // For now, we'll generate mock data similar to what we had before
-      
-      // Create dates from the last 5 days
+      // Generate mock placements for the last 5 days
       const currentDate = new Date();
       const dates = Array.from({ length: 5 }, (_, i) => {
         const date = new Date();
@@ -313,12 +295,11 @@ export default function Home() {
         return date;
       });
       
-      // Create mock placements with the actual group members
       const mockPlacements = dates.map((date, index) => ({
         date: formatDate(date),
         members: groupMembers.map((member, memberIndex) => ({
           ...member,
-          position: dailyPositions[index % dailyPositions.length][memberIndex % 5] // Reuse positions if needed
+          position: dailyPositions[index % dailyPositions.length][memberIndex % 5]
         })),
         labels: dailyLabels[index % dailyLabels.length]
       }));
@@ -329,23 +310,20 @@ export default function Home() {
       console.error("Error fetching daily placements:", error);
     }
   };
-  
+
   // Switch to a different group
   const switchGroup = async (groupId: string) => {
     setLoading(true);
-    
-    // Find the group in userGroups
     const group = userGroups.find(g => g.id === groupId);
-    
     if (group) {
       setActiveGroup(groupId);
       setGroupName(group.name);
+      setActiveGroupCreator(group.created_by || null);
       await fetchDailyPlacements(groupId);
     }
-    
     setLoading(false);
   };
-  
+
   const formatDate = (date: Date): string => {
     return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
   }
@@ -390,6 +368,7 @@ export default function Home() {
     )
   }
 
+
   return (
     <main className="flex min-h-screen flex-col items-center p-0 bg-[#FFF8E1] relative">
       {/* Header */}
@@ -403,11 +382,18 @@ export default function Home() {
           <span className="block w-7 h-1 bg-black rounded mb-1"></span>
           <span className="block w-7 h-1 bg-black rounded"></span>
         </button>
-        <div className="flex-1 flex justify-center items-center">
-          <span className="text-3xl font-black text-black select-none" style={{ fontFamily: 'Arial Black, Arial, sans-serif', letterSpacing: '-1px' }}>
+  
+        <div className="flex-1 flex justify-center items-center gap-4">
+          <span
+            className="text-3xl font-black text-black select-none"
+            style={{ fontFamily: 'Arial Black, Arial, sans-serif', letterSpacing: '-1px' }}
+          >
             {groupName || 'Select a Group'}
           </span>
+  
+          {/* Moderator Tools button - only show if currentUser is group creator */}
         </div>
+  
         <div className="relative mr-6">
           <button
             className="w-12 h-12 text-4xl font-black border-2 border-black rounded-2xl shadow-lg"
@@ -416,14 +402,28 @@ export default function Home() {
             +
           </button>
           {plusDropdownOpen && (
-            <div className="absolute right-0 mt-2 w-48 bg-white border border-black rounded-xl shadow-lg z-50 flex flex-col" style={{ fontFamily: 'Arial Black, Arial, sans-serif' }}>
-              <button className="px-6 py-3 text-lg text-left hover:bg-gray-100 rounded-t-xl">Suggest Axis</button>
-              <div className="border-t" style={{ borderColor: 'rgba(0,0,0,0.12)', borderWidth: 1 }} />
-              <button 
+            <div
+              className="absolute right-0 mt-2 w-48 bg-white border border-black rounded-xl shadow-lg z-50 flex flex-col"
+              style={{ fontFamily: 'Arial Black, Arial, sans-serif' }}
+            >
+              <button
+                className="px-6 py-3 text-lg text-left hover:bg-gray-100 rounded-t-xl"
+                onClick={() => {
+                  setPlusDropdownOpen(false); // if this is part of your dropdown logic
+                  router.push('/groups/suggest_axis');
+                }}
+              >
+                Suggest Axis
+              </button>
+              <div
+                className="border-t"
+                style={{ borderColor: 'rgba(0,0,0,0.12)', borderWidth: 1 }}
+              />
+              <button
                 className="px-6 py-3 text-lg text-left hover:bg-gray-100 rounded-b-xl"
                 onClick={() => {
                   setPlusDropdownOpen(false);
-                  router.push('/groups/group_code')
+                  router.push('/groups/group_code');
                 }}
               >
                 Invite
@@ -432,15 +432,21 @@ export default function Home() {
           )}
         </div>
       </header>
-
+  
       {/* Sidebar Overlay */}
       {menuOpen && (
-        <div className="fixed inset-0 z-40" style={{ background: 'rgba(0,0,0,0.10)' }} onClick={() => setMenuOpen(false)}></div>
+        <div
+          className="fixed inset-0 z-40"
+          style={{ background: 'rgba(0,0,0,0.10)' }}
+          onClick={() => setMenuOpen(false)}
+        ></div>
       )}
-      
+  
       {/* Sidebar */}
       <div
-        className={`fixed top-0 left-0 z-50 h-full w-[70vw] max-w-[400px] bg-[#FFF8E1] shadow-2xl transition-transform duration-300 ease-in-out border-r-2 border-black flex flex-col rounded-br-[100px] ${menuOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        className={`fixed top-0 left-0 z-50 h-full w-[70vw] max-w-[400px] bg-[#FFF8E1] shadow-2xl transition-transform duration-300 ease-in-out border-r-2 border-black flex flex-col rounded-br-[100px] ${
+          menuOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
         style={{ fontFamily: 'Arial Black, Arial, sans-serif' }}
       >
         <button
@@ -453,31 +459,51 @@ export default function Home() {
         <div className="p-8 pt-20 flex flex-col gap-0">
           <div>
             <div className="text-5xl font-black mb-2">Groups</div>
-            
+  
             {/* Dynamically render the user's groups */}
             {userGroups.map((group, index) => (
-              <div key={group.id}>
-                <div 
-                  className="ml-2 text-2xl font-black mb-1 cursor-pointer hover:text-gray-700"
-                  onClick={() => {
-                    switchGroup(group.id);
-                    setMenuOpen(false);
-                  }}
-                >
-                  {group.name}
+              <div key={group.id} className="mb-3">
+                <div className="flex items-center justify-between ml-2 mr-2">
+                  <div
+                    className="text-2xl font-black cursor-pointer hover:text-gray-700"
+                    onClick={() => {
+                      switchGroup(group.id);
+                      setMenuOpen(false);
+                    }}
+                  >
+                    {group.name}
+                  </div>
+                  {currentUser?.id === group.created_by && (
+                    <button
+                      className="text-sm font-bold text-white bg-black px-2 py-1 rounded-lg hover:bg-gray-800 transition"
+                      onClick={() => {
+                        router.push(`/groups/${group.id}/moderator`);
+                        setMenuOpen(false);
+                      }}
+                    >
+                      Mod Tools
+                    </button>
+                  )}
                 </div>
                 {index < userGroups.length - 1 && (
-                  <div className="ml-2 border-t" style={{ borderColor: 'rgba(0,0,0,0.12)', borderWidth: 1, margin: '8px 0' }} />
+                  <div
+                    className="ml-2 border-t"
+                    style={{ borderColor: 'rgba(0,0,0,0.12)', borderWidth: 1, margin: '8px 0' }}
+                  />
                 )}
               </div>
             ))}
-            
+
+  
             {userGroups.length === 0 && (
               <div className="ml-2 text-xl text-gray-600 mb-4">No groups yet</div>
             )}
-            
-            <div className="border-t" style={{ borderColor: 'rgba(0,0,0,0.12)', borderWidth: 1, margin: '8px 0' }} />
-            <div 
+  
+            <div
+              className="border-t"
+              style={{ borderColor: 'rgba(0,0,0,0.12)', borderWidth: 1, margin: '8px 0' }}
+            />
+            <div
               className="ml-2 text-2xl font-black mb-1 cursor-pointer hover:text-gray-700"
               onClick={() => {
                 setMenuOpen(false);
@@ -486,7 +512,7 @@ export default function Home() {
             >
               + Create Group
             </div>
-            <div 
+            <div
               className="ml-2 text-2xl font-black mb-6 cursor-pointer hover:text-gray-700"
               onClick={() => {
                 setMenuOpen(false);
@@ -496,8 +522,11 @@ export default function Home() {
               + Join Group
             </div>
           </div>
-          <div className="border-t" style={{ borderColor: 'rgba(0,0,0,0.12)', borderWidth: 1, margin: '8px 0' }} />
-          <div 
+          <div
+            className="border-t"
+            style={{ borderColor: 'rgba(0,0,0,0.12)', borderWidth: 1, margin: '8px 0' }}
+          />
+          <div
             className="text-4xl font-black mb-6 cursor-pointer hover:text-gray-700"
             onClick={() => {
               setMenuOpen(false);
@@ -506,8 +535,11 @@ export default function Home() {
           >
             View Profile
           </div>
-          <div className="border-t" style={{ borderColor: 'rgba(0,0,0,0.12)', borderWidth: 1, margin: '8px 0' }} />
-          <div 
+          <div
+            className="border-t"
+            style={{ borderColor: 'rgba(0,0,0,0.12)', borderWidth: 1, margin: '8px 0' }}
+          />
+          <div
             className="text-4xl font-black flex items-center gap-2 cursor-pointer hover:text-gray-700"
             onClick={async () => {
               await supabase.auth.signOut();
@@ -516,26 +548,42 @@ export default function Home() {
           >
             Log Out
             <span className="inline-block border-2 border-black rounded-md p-1 ml-2">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/><path d="M15 12H3"/></svg>
+              <svg
+                width="28"
+                height="28"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="black"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M9 18l6-6-6-6" />
+                <path d="M15 12H3" />
+              </svg>
             </span>
           </div>
         </div>
       </div>
-
+  
       {/* Main Content */}
-      <div className={`flex flex-col items-center w-full transition-all duration-300 px-6 sm:px-6 md:px-8 ${menuOpen ? 'pointer-events-none select-none' : ''}`}>
+      <div
+        className={`flex flex-col items-center w-full transition-all duration-300 px-6 sm:px-6 md:px-8 ${
+          menuOpen ? 'pointer-events-none select-none' : ''
+        }`}
+      >
         {userGroups.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-[70vh]">
             <div className="text-2xl font-bold mb-4">You're not in any groups yet!</div>
             <div className="text-lg mb-6">Create a new group or join an existing one.</div>
             <div className="flex gap-4">
-              <button 
+              <button
                 className="px-6 py-3 bg-black text-white rounded-xl font-bold"
                 onClick={() => router.push('/groups/create')}
               >
                 Create Group
               </button>
-              <button 
+              <button
                 className="px-6 py-3 border-2 border-black rounded-xl font-bold"
                 onClick={() => router.push('/groups/join')}
               >
@@ -549,8 +597,8 @@ export default function Home() {
               <h2 className="text-2xl font-black mb-2" style={{ fontFamily: 'Arial, sans-serif' }}>
                 {placement.date}
               </h2>
-              <div 
-                onClick={() => activeGroup && router.push(`/groups/${activeGroup}/results`)} 
+              <div
+                onClick={() => activeGroup && router.push(`/groups/${activeGroup}/results`)}
                 className="cursor-pointer w-full max-w-[calc(100vw-3rem)] sm:max-w-[calc(100vw-3rem)] md:max-w-[430px]"
               >
                 <Axis
@@ -558,19 +606,19 @@ export default function Home() {
                     top: placement.labels.top,
                     bottom: placement.labels.bottom,
                     left: placement.labels.left,
-                    right: placement.labels.right
+                    right: placement.labels.right,
                   }}
                   labelColors={placement.labels.labelColors}
                   size={500}
                   tokenSize={36}
-                  tokens={placement.members.map(member => ({
+                  tokens={placement.members.map((member) => ({
                     id: member.id,
                     name: member.name,
                     x: member.position?.x || 0.5,
                     y: member.position?.y || 0.5,
                     color: member.color,
                     borderColor: member.borderColor,
-                    imageUrl: member.imageUrl
+                    imageUrl: member.imageUrl,
                   }))}
                 />
               </div>
@@ -579,5 +627,5 @@ export default function Home() {
         )}
       </div>
     </main>
-  )
+  );
 }
