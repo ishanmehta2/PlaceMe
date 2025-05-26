@@ -17,20 +17,22 @@ export default function PlaceYourself() {
   const { userName, firstName, userAvatar, loading, error } = useUserData()
   
   // Start at center of grid, accounting for token size
-  const initialPosition = { 
-    x: (AXIS_SIZE - TOKEN_SIZE) / 2, 
-    y: (AXIS_SIZE - TOKEN_SIZE) / 2 
+  const initialPositions = { 
+    'user-token': { 
+      x: (AXIS_SIZE - TOKEN_SIZE) / 2, 
+      y: (AXIS_SIZE - TOKEN_SIZE) / 2 
+    }
   }
   
   const {
-    position,
+    positions,
     activeId,
     gridRef,
     sensors,
     handleDragStart,
     handleDragEnd,
     handleDragCancel
-  } = useDragAndDrop(initialPosition)
+  } = useDragAndDrop(initialPositions)
 
   // Proceed to confirmation screen
   const handleNext = async () => {
@@ -55,8 +57,9 @@ export default function PlaceYourself() {
       }
       
       // Convert position from pixels to percent
-      const percentX = (position.x / AXIS_SIZE) * 100
-      const percentY = (position.y / AXIS_SIZE) * 100
+      const userPosition = positions['user-token']
+      const percentX = (userPosition.x / AXIS_SIZE) * 100
+      const percentY = (userPosition.y / AXIS_SIZE) * 100
       
       // Save data to the place_yourself table
       const { error: saveError } = await supabase
@@ -138,7 +141,8 @@ export default function PlaceYourself() {
                 }}
               >
                 <DraggableToken
-                  position={position}
+                  id="user-token"
+                  position={positions['user-token']}
                   isDragging={activeId === 'user-token'}
                   userAvatar={userAvatar}
                   firstName={firstName}
