@@ -1,31 +1,36 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useUserData } from '../../hooks/useUserData'
-import { useGroupMembers } from '../../hooks/useGroupMembers'
+import { useGroupWorkflow } from '../../hooks/useGroupWorkflow'
 import { TokenGrid } from '../../components/TokenGrid'
 
 export default function PlaceOthers() {
   const router = useRouter()
   const { userName, firstName, userAvatar, loading: userLoading, error: userError } = useUserData()
   const { 
-    tokens, 
     loading, 
     error, 
-    userGroups, 
     selectedGroup, 
+    tokens, 
+    getWorkflowGroup, 
     handlePositionChange, 
-    savePositions 
-  } = useGroupMembers()
+    saveOthersPlacement 
+  } = useGroupWorkflow()
   
   const [isSaving, setIsSaving] = useState(false)
+
+  // Get the workflow group on component mount
+  useEffect(() => {
+    getWorkflowGroup()
+  }, [])
 
   // Handle next button
   const handleNext = async () => {
     try {
       setIsSaving(true)
-      await savePositions()
+      await saveOthersPlacement()
       router.push('/groups/results')
     } catch (err: any) {
       console.error('Error saving positions:', err)
@@ -43,17 +48,17 @@ export default function PlaceOthers() {
     )
   }
 
-  if (error) {
+  if (error || userError) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-[#FFF8E1]">
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-2xl mb-4">
-          {error}
+          {error || userError}
         </div>
         <button
-          onClick={() => router.push('/')}
+          onClick={() => router.push('/groups/place_yourself')}
           className="bg-blue-500 text-white px-6 py-2 rounded-lg"
         >
-          Go Back Home
+          Start Over
         </button>
       </main>
     )
@@ -62,29 +67,7 @@ export default function PlaceOthers() {
   return (
     <main className="flex min-h-screen flex-col items-center pt-8 p-4 bg-[#FFF8E1]">
       <div className="w-full max-w-sm">
-        {/* Debug: Show all groups */}
-        <div className="bg-blue-100 border border-blue-300 rounded-lg p-4 mb-6">
-          <h3 className="font-bold text-lg mb-2">All Your Groups:</h3>
-          {userGroups.length > 0 ? (
-            <ul className="space-y-2">
-              {userGroups.map((group) => (
-                <li key={group.id} className="flex justify-between items-center">
-                  <span className="font-medium">{group.name}</span>
-                  <span className="text-sm text-gray-600">({group.role})</span>
-                  {selectedGroup?.id === group.id && (
-                    <span className="bg-green-200 text-green-800 px-2 py-1 rounded text-xs">
-                      SELECTED
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-gray-600">No groups found</p>
-          )}
-        </div>
-
-        {/* Show selected group and place others interface */}
+        {/* Show selected group info */}
         {selectedGroup && (
           <>
             {/* Header */}
@@ -104,25 +87,16 @@ export default function PlaceOthers() {
               <p className="text-sm text-gray-600">
                 {tokens.length} member{tokens.length !== 1 ? 's' : ''} to place
               </p>
-              <p className="text-xs text-blue-600 mt-1">
-                (Randomly selected from your {userGroups.length} group{userGroups.length !== 1 ? 's' : ''})
-              </p>
             </div>
-
-            {(error || userError) && (
-              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-2xl mb-4">
-                {error || userError}
-              </div>
-            )}
 
             {tokens.length === 0 ? (
               <div className="text-center">
                 <p className="text-lg mb-6">You're the only member in this group right now.</p>
                 <button
-                  onClick={() => router.push('/')}
+                  onClick={() => router.push('/groups/results')}
                   className="bg-blue-500 text-white px-6 py-2 rounded-lg"
                 >
-                  Go Back Home
+                  Skip to Results
                 </button>
               </div>
             ) : (
