@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import { useDraggable, TouchSensor, MouseSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { positionUtils } from '../utils/positionUtils'
 
 interface Position {
   x: number
@@ -18,13 +19,18 @@ interface DragAndDropState {
   handleDragStart: (event: any) => void
   handleDragEnd: (event: any) => void
   handleDragCancel: () => void
-  updatePosition: (tokenId: string, position: Position) => void
 }
 
-const GRID_SIZE = 300
+const DEFAULT_GRID_WIDTH = 300
+const DEFAULT_GRID_HEIGHT = 300
+const DEFAULT_NEUTRAL_ZONE_HEIGHT = 100
 const TOKEN_SIZE = 35
 
-export function useDragAndDrop(initialPositions: TokenPositions): DragAndDropState {
+export function useDragAndDrop(
+  initialPositions: TokenPositions,
+  gridHeight: number = DEFAULT_GRID_HEIGHT,
+  neutralZoneHeight: number = DEFAULT_NEUTRAL_ZONE_HEIGHT
+): DragAndDropState {
   const [positions, setPositions] = useState<TokenPositions>(initialPositions)
   const [activeId, setActiveId] = useState<string | null>(null)
   const gridRef = useRef<HTMLDivElement>(null) as React.RefObject<HTMLDivElement>
@@ -65,13 +71,18 @@ export function useDragAndDrop(initialPositions: TokenPositions): DragAndDropSta
           let newX = currentPosition.x + delta.x
           let newY = currentPosition.y + delta.y
           
-          // Clamp to grid bounds, accounting for token size and offset
-          newX = Math.max(0, Math.min(newX, GRID_SIZE - TOKEN_SIZE))
-          newY = Math.max(0, Math.min(newY, GRID_SIZE - TOKEN_SIZE))
-          
+          // Use center-based clamping to match drag preview
+          const clamped = positionUtils.clampToGrid(
+            newX, 
+            newY, 
+            DEFAULT_GRID_WIDTH, 
+            gridHeight, 
+            TOKEN_SIZE,
+            neutralZoneHeight
+          )
           return {
             ...prev,
-            [tokenId]: { x: newX, y: newY }
+            [tokenId]: clamped
           }
         })
       }
@@ -84,14 +95,6 @@ export function useDragAndDrop(initialPositions: TokenPositions): DragAndDropSta
     setActiveId(null)
   }
 
-  // Update position manually (useful for initialization or programmatic updates)
-  const updatePosition = (tokenId: string, position: Position) => {
-    setPositions(prev => ({
-      ...prev,
-      [tokenId]: position
-    }))
-  }
-
   return {
     positions,
     activeId,
@@ -99,7 +102,6 @@ export function useDragAndDrop(initialPositions: TokenPositions): DragAndDropSta
     sensors,
     handleDragStart,
     handleDragEnd,
-    handleDragCancel,
-    updatePosition
+    handleDragCancel
   }
 } 

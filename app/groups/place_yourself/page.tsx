@@ -10,7 +10,8 @@ import { DraggableToken } from '../../components/DraggableToken'
 import Axis from '../../components/Axis'
 
 // Constants for sizing
-const AXIS_SIZE = 300
+const AXIS_WIDTH = 300
+const AXIS_HEIGHT = 300
 const TOKEN_SIZE = 35
 
 export default function PlaceYourself() {
@@ -18,7 +19,7 @@ export default function PlaceYourself() {
   const { userName, firstName, userAvatar, loading: userLoading, error: userError } = useUserData()
   const { 
     loading, 
-    error, 
+    error: groupError, 
     userGroups, 
     selectedGroup, 
     initializeWorkflow, 
@@ -26,12 +27,13 @@ export default function PlaceYourself() {
   } = useGroupWorkflow()
   
   const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   
   // Start at center of grid, accounting for token size
   const initialPositions = { 
     'user-token': { 
-      x: (AXIS_SIZE - TOKEN_SIZE) / 2, 
-      y: (AXIS_SIZE - TOKEN_SIZE) / 2 
+      x: (AXIS_WIDTH - TOKEN_SIZE) / 2, 
+      y: (AXIS_HEIGHT - TOKEN_SIZE) / 2 
     }
   }
   
@@ -53,7 +55,7 @@ export default function PlaceYourself() {
   // Proceed to place others
   const handleNext = async () => {
     if (!selectedGroup || !userName || !firstName) {
-      setError?.('Missing required information. Please try again.')
+      setError('Missing required information. Please try again.')
       return
     }
 
@@ -67,7 +69,7 @@ export default function PlaceYourself() {
       router.push('/groups/place_others')
     } catch (err: any) {
       console.error('Error saving position:', err)
-      setError?.(err.message || 'Failed to save your preferences')
+      setError(err.message || 'Failed to save your preferences')
     } finally {
       setIsSaving(false)
     }
@@ -81,17 +83,17 @@ export default function PlaceYourself() {
     )
   }
 
-  if (error || userError) {
+  if (groupError || userError || error) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-[#FFF8E1]">
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-2xl mb-4">
-          {error || userError}
+          {groupError || userError || error}
         </div>
         <button
           onClick={() => router.push('/')}
           className="bg-blue-500 text-white px-6 py-2 rounded-lg"
         >
-          Go Back Home
+          Start Over
         </button>
       </main>
     )
@@ -136,7 +138,8 @@ export default function PlaceYourself() {
           >
             <div ref={gridRef} className="relative">
               <Axis
-                size={AXIS_SIZE}
+                width={AXIS_WIDTH}
+                height={AXIS_HEIGHT}
                 labels={{
                   top: 'Wet Sock',
                   bottom: 'Dry Tongue',

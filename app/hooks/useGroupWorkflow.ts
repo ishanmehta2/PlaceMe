@@ -45,18 +45,28 @@ const getMemberColor = (index: number): string => {
   return colors[index % colors.length]
 }
 
-// Calculate initial positions in a circle
-const calculateInitialPositions = (memberCount: number): Position[] => {
+// Calculate initial positions in the neutral zone
+const calculateInitialPositions = (memberCount: number, gridWidth: number = 300, gridHeight: number = 300, neutralZoneHeight: number = 100): Position[] => {
   const positions: Position[] = []
+  const tokenSize = 35 // Size of each token
+  
+  // Calculate padding to evenly space tokens
+  // We want (n-1) gaps between tokens and 2 gaps at the edges
+  // Total available space = gridWidth - (n * tokenSize)
+  // Number of gaps = n + 1
+  const totalGaps = memberCount + 1
+  const totalTokenWidth = memberCount * tokenSize
+  const padding = (gridWidth - totalTokenWidth) / totalGaps
+  
+  // Position in the middle of the neutral zone
+  const neutralZoneY = gridHeight + (neutralZoneHeight / 2) // Center token vertically
   
   for (let i = 0; i < memberCount; i++) {
-    const angle = (i * 2 * Math.PI) / memberCount
-    const radius = 300 * 0.3 // 30% from center (assuming 300px grid size)
-    const centerX = 150 // Half of 300
-    const centerY = 150 // Half of 300
-    
-    const x = Math.max(18, Math.min(282, centerX + Math.cos(angle) * radius))
-    const y = Math.max(18, Math.min(282, centerY + Math.sin(angle) * radius))
+    // Calculate x position accounting for token size
+    // Each position is: padding + (i * (tokenSize + padding)) + (tokenSize / 2)
+    // This centers the token in its allocated space
+    const x = padding + (i * (tokenSize + padding)) + (tokenSize / 2)
+    const y = neutralZoneY
     
     positions.push({ x, y })
   }
@@ -252,7 +262,12 @@ export const useGroupWorkflow = () => {
       
       // Create tokens for other members (excluding current user)
       const otherMembers = allGroupMembers.filter(member => member.user_id !== currentUserId)
-      const initialPositions = calculateInitialPositions(otherMembers.length)
+      const initialPositions = calculateInitialPositions(
+        otherMembers.length,
+        300, // gridWidth
+        300, // gridHeight
+        100  // neutralZoneHeight
+      )
       
       const userTokens: UserToken[] = otherMembers.map((member, index) => ({
         id: member.user_id,

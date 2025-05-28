@@ -8,16 +8,18 @@ import Axis from '../../components/Axis'
 import Token from '../../components/Token'
 import { ArrowLeftIcon, ChevronDownIcon } from '@heroicons/react/24/solid'
 
-// Constants
-const AXIS_SIZE = 300
+// Constants for sizing
+const AXIS_WIDTH = 300
+const AXIS_HEIGHT = 300
 const TOKEN_SIZE = 35
 const GUESS_TOKEN_SIZE = 25
 
 export default function Results() {
   const router = useRouter()
-  const { loading, error, selectedGroup, results } = useResults()
+  const { loading, error: groupError, results, selectedGroup } = useResults()
   const [view, setView] = useState<'self' | 'guessed'>('self')
   const [selectedToken, setSelectedToken] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [newComment, setNewComment] = useState('')
   const commentsEndRef = useRef<HTMLDivElement | null>(null)
 
@@ -69,14 +71,14 @@ export default function Results() {
     )
   }
 
-  if (error) {
+  if (groupError || error) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-[#FFF8E1]">
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-2xl mb-4">
-          {error}
+          {groupError || error}
         </div>
         <button
-          onClick={() => router.push('/groups/place_yourself')}
+          onClick={() => router.push('/')}
           className="bg-blue-500 text-white px-6 py-2 rounded-lg"
         >
           Start Over
@@ -156,7 +158,8 @@ export default function Results() {
         ) : (
           <div className="relative">
             <Axis
-              size={AXIS_SIZE}
+              width={AXIS_WIDTH}
+              height={AXIS_HEIGHT}
               labels={{
                 top: 'Wet Sock',
                 bottom: 'Dry Tongue',
@@ -177,35 +180,21 @@ export default function Results() {
 
               {view === 'self' &&
                 results.selfPlaced.map(token => (
-                  <div
+                  <Token
                     key={token.user_id}
+                    id={token.user_id}
+                    name={token.username}
+                    position={{ x: token.x, y: token.y }}
+                    size={TOKEN_SIZE}
+                    color={token.color}
+                    imageUrl={token.avatar_url}
+                    isSelected={selectedToken === token.user_id}
+                    onClick={() => setSelectedToken(selectedToken === token.user_id ? null : token.user_id)}
                     style={{
-                      position: 'absolute',
-                      left: `${token.x}%`,
-                      top: `${token.y}%`,
-                      transform: 'translate(-50%, -50%)',
-                      transition: 'all 0.3s ease-in-out',
-                      zIndex: selectedToken === token.user_id ? 15 : 10,
                       opacity: selectedToken && selectedToken !== token.user_id ? 0.6 : 1,
-                      cursor: 'pointer',
+                      zIndex: selectedToken === token.user_id ? 15 : 10,
                     }}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setSelectedToken(selectedToken === token.user_id ? null : token.user_id)
-                    }}
-                  >
-                    <Token
-                      id={token.user_id}
-                      name={token.username}
-                      x={0}
-                      y={0}
-                      color={token.color}
-                      size={TOKEN_SIZE}
-                      imageUrl={token.avatar_url}
-                      showTooltip={false}
-                      isSelected={selectedToken === token.user_id}
-                    />
-                  </div>
+                  />
                 ))
               }
 
@@ -213,58 +202,31 @@ export default function Results() {
                 results.guessed.map(guessedResult => (
                   <div key={guessedResult.user_id}>
                     {guessedResult.individualGuesses.map((guess, index) => (
-                      <div
+                      <Token
                         key={`guess-${index}`}
-                        style={{
-                          position: 'absolute',
-                          left: `${guess.position.x}%`,
-                          top: `${guess.position.y}%`,
-                          transform: 'translate(-50%, -50%)',
-                          zIndex: 5,
-                          opacity: 0.4,
-                          pointerEvents: 'none',
-                        }}
-                      >
-                        <Token
-                          id={`guess-${index}`}
-                          name={guess.guesser_name}
-                          x={0}
-                          y={0}
-                          color={guessedResult.color}
-                          size={GUESS_TOKEN_SIZE}
-                          imageUrl={guess.guesser_avatar}
-                          showTooltip={true}
-                        />
-                      </div>
+                        id={`guess-${index}`}
+                        name={guess.guesser_name}
+                        position={{ x: guess.position.x, y: guess.position.y }}
+                        size={GUESS_TOKEN_SIZE}
+                        color={guessedResult.color}
+                        imageUrl={guess.guesser_avatar}
+                        style={{ opacity: 0.4, pointerEvents: 'none', zIndex: 5 }}
+                      />
                     ))}
-                    <div
+                    <Token
+                      id={guessedResult.user_id}
+                      name={guessedResult.username}
+                      position={{ x: guessedResult.averagePosition.x, y: guessedResult.averagePosition.y }}
+                      size={TOKEN_SIZE + 5}
+                      color={guessedResult.color}
+                      imageUrl={guessedResult.avatar_url}
+                      isSelected={selectedToken === guessedResult.user_id}
+                      onClick={() => setSelectedToken(selectedToken === guessedResult.user_id ? null : guessedResult.user_id)}
                       style={{
-                        position: 'absolute',
-                        left: `${guessedResult.averagePosition.x}%`,
-                        top: `${guessedResult.averagePosition.y}%`,
-                        transform: 'translate(-50%, -50%)',
-                        transition: 'all 0.3s ease-in-out',
                         zIndex: selectedToken === guessedResult.user_id ? 15 : 10,
-                        cursor: 'pointer',
                         filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3))',
                       }}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setSelectedToken(selectedToken === guessedResult.user_id ? null : guessedResult.user_id)
-                      }}
-                    >
-                      <Token
-                        id={guessedResult.user_id}
-                        name={guessedResult.username}
-                        x={0}
-                        y={0}
-                        color={guessedResult.color}
-                        size={TOKEN_SIZE + 5}
-                        imageUrl={guessedResult.avatar_url}
-                        showTooltip={false}
-                        isSelected={selectedToken === guessedResult.user_id}
-                      />
-                    </div>
+                    />
                   </div>
                 ))
               }
@@ -301,7 +263,7 @@ export default function Results() {
               </div>
               <div className="ml-2 flex items-center justify-center">
                 <img
-                  src={selectedTokenInfo.avatar_url || selectedTokenInfo.userAvatar}
+                  src={selectedTokenInfo.avatar_url}
                   alt="avatar"
                   className="w-12 h-12 rounded-full border-4"
                   style={{ borderColor: selectedTokenInfo.color || '#A855F7' }}

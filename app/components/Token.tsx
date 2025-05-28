@@ -1,58 +1,58 @@
 "use client"
 import React from 'react'
+import { tokenStyles } from '../styles/tokenStyles'
+import { positionUtils } from '../utils/positionUtils'
 
 export interface TokenProps {
   id: string
   name: string
-  x: number // -1 to 1
-  y: number // -1 to 1
+  position: {
+    x: number
+    y: number
+  }
+  size: number
   color?: string
-  size?: number
+  imageUrl?: string
+  isSelected?: boolean
   showTooltip?: boolean
   onClick?: () => void
   className?: string
-  imageUrl?: string
-  isSelected?: boolean
+  style?: React.CSSProperties
+  disablePositioning?: boolean
 }
 
 export default function Token({
   id,
   name,
-  x,
-  y,
+  position,
+  size,
   color = '#4F46E5',
-  size = 56,
+  imageUrl,
+  isSelected = false,
   showTooltip = true,
   onClick,
   className = '',
-  imageUrl,
-  isSelected = false,
+  style,
+  disablePositioning = false,
 }: TokenProps) {
-  const position = {
-    left: `${50 + x * 45}%`,
-    top: `${50 - y * 45}%`,
-  }
-  const border = Math.max(4, Math.round(size * 0.13)) // 13% of size, min 4px
-  const fontSize = Math.max(14, Math.round(size * 0.36)) // 36% of size, min 14px
-  const imageSize = size - border * 2
+  const { border, fontSize, imageSize } = positionUtils.calculateTokenSize(size)
+  const positionStyle = disablePositioning ? {} : positionUtils.calculateTokenPosition(position.x, position.y, size)
 
   return (
     <div
       className={`absolute flex flex-col items-center ${className}`}
-      style={{ ...position, zIndex: 2 }}
+      style={{ ...tokenStyles.base, ...positionStyle, ...style }}
     >
       <div
         className="flex items-center justify-center"
         style={{
+          ...tokenStyles.container,
           width: size,
           height: size,
-          backgroundColor: '#fffbe6',
-          borderRadius: '50%',
           border: `${border}px solid ${color}`,
           boxShadow: isSelected 
             ? '0 0 0 4px rgba(0,0,0,0.2), 0 4px 8px rgba(0,0,0,0.2)' 
             : '0 2px 4px rgba(0,0,0,0.2)',
-          overflow: 'hidden',
           cursor: onClick ? 'pointer' : 'default',
           transform: isSelected ? 'scale(1.1)' : 'scale(1)',
           transition: 'all 0.3s ease-in-out',
@@ -60,25 +60,26 @@ export default function Token({
         title={showTooltip ? name : undefined}
         onClick={onClick}
       >
-        {imageUrl ? (
+        {imageUrl && (
           <img
             src={imageUrl}
             alt={name}
-            style={{ width: imageSize, height: imageSize, objectFit: 'cover', borderRadius: '50%' }}
+            style={{
+              ...tokenStyles.image,
+              width: imageSize,
+              height: imageSize,
+            }}
           />
-        ) : null}
+        )}
       </div>
-      <div
-        className="mt-1 text-center"
-        style={{ 
-          fontWeight: isSelected ? 700 : 600, 
-          fontSize, 
-          color: '#222', 
-          textShadow: '0 1px 2px #fff',
-          transition: 'all 0.3s ease-in-out',
-        }}
-      >
-        {name}
+      <div style={{ 
+        ...tokenStyles.name, 
+        fontSize,
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+      }}>
+        {name.split(' ')[0]}
       </div>
     </div>
   )

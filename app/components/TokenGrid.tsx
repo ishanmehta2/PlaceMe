@@ -2,6 +2,7 @@ import { DndContext } from '@dnd-kit/core'
 import { DraggableToken } from './DraggableToken'
 import Axis from './Axis'
 import { useDragAndDrop } from '../hooks/useDragAndDrop'
+import { useState, useEffect } from 'react'
 
 interface Position {
   x: number
@@ -10,14 +11,15 @@ interface Position {
 
 interface Token {
   id: string
-  firstName: string
-  userAvatar: string
   position: Position
+  userAvatar: string
+  firstName: string
 }
 
 interface TokenGridProps {
   tokens: Token[]
   onPositionChange?: (tokenId: string, position: Position) => void
+  onPlacementChange?: (allPlaced: boolean) => void
   axisLabels: {
     top: string
     bottom: string
@@ -30,11 +32,26 @@ interface TokenGridProps {
     left: string
     right: string
   }
+  axisWidth?: number
+  axisHeight?: number
+  neutralZoneHeight?: number
 }
 
-const GRID_SIZE = 300
+const DEFAULT_AXIS_WIDTH = 300
+const DEFAULT_AXIS_HEIGHT = 300
+const DEFAULT_NEUTRAL_ZONE_HEIGHT = 100
+const TOKEN_SIZE = 35
 
-export function TokenGrid({ tokens, onPositionChange, axisLabels, axisColors }: TokenGridProps) {
+export function TokenGrid({ 
+  tokens, 
+  onPositionChange,
+  onPlacementChange,
+  axisLabels, 
+  axisColors,
+  axisWidth = DEFAULT_AXIS_WIDTH,
+  axisHeight = DEFAULT_AXIS_HEIGHT,
+  neutralZoneHeight = DEFAULT_NEUTRAL_ZONE_HEIGHT
+}: TokenGridProps) {
   // Initialize positions from tokens
   const initialPositions = tokens.reduce((acc, token) => ({
     ...acc,
@@ -49,14 +66,45 @@ export function TokenGrid({ tokens, onPositionChange, axisLabels, axisColors }: 
     handleDragStart,
     handleDragEnd,
     handleDragCancel
-  } = useDragAndDrop(initialPositions)
+  } = useDragAndDrop(initialPositions, axisHeight, neutralZoneHeight)
+
+  // Track placed tokens
+  const [placedTokens, setPlacedTokens] = useState<Set<string>>(new Set())
+
+  // Update placed tokens when positions change
+  useEffect(() => {
+    const newPlacedTokens = new Set<string>()
+    Object.entries(positions).forEach(([tokenId, position]) => {
+      // Token is considered placed if it's completely within the axis area
+      // Check if the bottom edge of the token (y + TOKEN_SIZE/2) is within the axis height
+      if (position.y + TOKEN_SIZE/2 <= axisHeight) {
+        newPlacedTokens.add(tokenId)
+      }
+    })
+    setPlacedTokens(newPlacedTokens)
+    
+    // Notify parent if all tokens are placed
+    if (onPlacementChange) {
+      onPlacementChange(newPlacedTokens.size === tokens.length)
+    }
+  }, [positions, axisHeight, tokens.length, onPlacementChange])
 
   // Notify parent of position changes
   const handleDragEndWithCallback = (event: any) => {
     handleDragEnd(event)
     if (onPositionChange && event.active) {
       const tokenId = event.active.id
-      onPositionChange(tokenId, positions[tokenId])
+      const position = positions[tokenId]
+      
+      // Convert pixel positions to percentages (-1 to 1)
+      const adjustedPosition = {
+        x: (position.x / axisWidth) * 2 - 1, // Convert to -1 to 1 range
+        y: position.y > axisHeight 
+          ? 1 // If in neutral zone, set to bottom of axis (1)
+          : (position.y / axisHeight) * 2 - 1 // Convert to -1 to 1 range
+      }
+      
+      onPositionChange(tokenId, adjustedPosition)
     }
   }
 
@@ -67,23 +115,44 @@ export function TokenGrid({ tokens, onPositionChange, axisLabels, axisColors }: 
       onDragEnd={handleDragEndWithCallback}
       onDragCancel={handleDragCancel}
     >
-      <div ref={gridRef} className="relative">
+      <div 
+        ref={gridRef} 
+        className="relative rounded-2xl overflow-hidden"
+        style={{
+          width: axisWidth,
+          height: axisHeight + neutralZoneHeight + 8, // Add 8px for margin
+          padding: '0px'
+        }}
+      >
         <Axis
-          size={GRID_SIZE}
+          width={axisWidth}
+          height={axisHeight}
           labels={axisLabels}
           labelColors={axisColors}
-        >
-          {tokens.map(token => (
-            <DraggableToken
-              key={token.id}
-              id={token.id}
-              position={positions[token.id]}
-              isDragging={activeId === token.id}
-              userAvatar={token.userAvatar}
-              firstName={token.firstName}
-            />
-          ))}
-        </Axis>
+        />
+        {tokens.map(token => (
+          <DraggableToken
+            key={token.id}
+            id={token.id}
+            position={positions[token.id]}
+            isDragging={activeId === token.id}
+            userAvatar={token.userAvatar}
+            firstName={token.firstName}
+            gridWidth={axisWidth}
+            gridHeight={axisHeight}
+            neutralZoneHeight={neutralZoneHeight}
+            isPlaced={placedTokens.has(token.id)}
+          />
+        ))}
+        <div 
+          className="w-full bg-[#FFE082]"
+          style={{ 
+            height: neutralZoneHeight,
+            marginTop: '8px',
+            borderRadius: '24px',
+            overflow: 'hidden'
+          }}
+        />
       </div>
     </DndContext>
   )
