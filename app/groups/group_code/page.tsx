@@ -135,6 +135,7 @@ export default function GroupCode() {
   return (
     <main className="flex min-h-screen flex-col items-center pt-8 p-4 bg-[#FFF8E1]">
       <div className="w-full max-w-sm">
+
         {/* Back Button */}
         <button
           onClick={() => router.push('/home')}

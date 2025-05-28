@@ -152,6 +152,16 @@ export default function CreateGroup() {
   return (
     <main className="flex min-h-screen flex-col items-center pt-8 p-4 bg-[#FFF8E1]">
       <div className="w-full max-w-sm">
+        {/* Back Button */}
+        <button
+          onClick={() => router.push('/home')}
+          aria-label="Go back to home"
+          className="absolute top-4 left-4 text-4xl font-black text-black hover:text-gray-700 transition"
+          style={{ fontFamily: 'Arial Black, Arial, sans-serif', lineHeight: 1 }}
+        >
+          ←
+        </button>
+    
         {/* Header with Create Group text */}
         <div className="bg-[#FFE082] py-4 px-4 rounded-full w-full mx-auto mb-8">
           <h1 className="text-4xl font-black text-center" style={{ 
