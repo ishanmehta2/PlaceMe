@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import { BsThreeDotsVertical } from "react-icons/bs";
 import { FaCrown } from "react-icons/fa";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../../lib/auth/supabase";
 import { IoArrowBack } from "react-icons/io5"; // Back arrow icon
 
@@ -25,89 +25,106 @@ interface UserGroup {
 
 export default function GroupMembersPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const groupIdFromUrl = searchParams.get('groupId'); // Get group ID from URL
 
   const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null);
-  const [userGroups, setUserGroups] = useState<UserGroup[]>([]);
-  const [activeGroup, setActiveGroup] = useState<string | null>(null);
-
+  const [currentGroup, setCurrentGroup] = useState<UserGroup | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [openMenuIndex, setOpenMenuIndex] = useState<number | null>(null);
   const [reportingIndex, setReportingIndex] = useState<number | null>(null);
   const [reportComment, setReportComment] = useState("");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchUserAndGroups = async () => {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+    const fetchCurrentGroup = async () => {
+      try {
+        setLoading(true);
 
-      if (userError || !user) {
-        console.error("Error fetching user:", userError);
-        router.push("/login");
-        return;
-      }
-      setCurrentUser(user);
+        // Get current user
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
 
-      const { data: memberships, error: memErr } = await supabase
-        .from("group_members")
-        .select("group_id, role")
-        .eq("user_id", user.id);
+        if (userError || !user) {
+          console.error("Error fetching user:", userError);
+          router.push("/login");
+          return;
+        }
+        setCurrentUser(user);
 
-      if (memErr) {
-        console.error("Error fetching memberships:", memErr);
-        return;
-      }
+        // If no group ID in URL, redirect to home
+        if (!groupIdFromUrl) {
+          console.log("No group ID provided, redirecting to home");
+          router.push("/home");
+          return;
+        }
 
-      if (!memberships || memberships.length === 0) {
-        setUserGroups([]);
-        return;
-      }
+        console.log("📍 Loading group from URL:", groupIdFromUrl);
 
-      const groupIds = memberships.map((m) => m.group_id);
+        // Get user's membership in the specified group
+        const { data: membership, error: memErr } = await supabase
+          .from("group_members")
+          .select("group_id, role")
+          .eq("user_id", user.id)
+          .eq("group_id", groupIdFromUrl)
+          .single();
 
-      const { data: groupsData, error: groupErr } = await supabase
-        .from("groups")
-        .select("id, name, invite_code, created_by")
-        .in("id", groupIds);
+        if (memErr || !membership) {
+          console.error("User not member of this group:", memErr);
+          router.push("/home");
+          return;
+        }
 
-      if (groupErr) {
-        console.error("Error fetching groups:", groupErr);
-        return;
-      }
+        // Get the group details
+        const { data: groupData, error: groupErr } = await supabase
+          .from("groups")
+          .select("id, name, invite_code, created_by")
+          .eq("id", groupIdFromUrl)
+          .single();
 
-      const formattedGroups: UserGroup[] = groupsData.map((group) => {
-        const membership = memberships.find((m) => m.group_id === group.id);
-        return {
-          id: group.id,
-          name: group.name,
-          invite_code: group.invite_code,
-          role: membership?.role ?? "member",
-          created_by: group.created_by,
+        if (groupErr || !groupData) {
+          console.error("Error fetching group:", groupErr);
+          router.push("/home");
+          return;
+        }
+
+        const currentGroupData: UserGroup = {
+          id: groupData.id,
+          name: groupData.name,
+          invite_code: groupData.invite_code,
+          role: membership.role,
+          created_by: groupData.created_by,
         };
-      });
 
-      setUserGroups(formattedGroups);
+        console.log("✅ Loaded group:", currentGroupData.name);
+        setCurrentGroup(currentGroupData);
 
-      if (formattedGroups.length > 0) {
-        setActiveGroup(formattedGroups[0].id);
+      } catch (error) {
+        console.error("Error in fetchCurrentGroup:", error);
+        router.push("/home");
+      } finally {
+        setLoading(false);
       }
     };
 
-    fetchUserAndGroups();
-  }, [router]);
+    fetchCurrentGroup();
+  }, [router, groupIdFromUrl]);
 
   useEffect(() => {
-    if (!activeGroup) {
+    if (!currentGroup) {
       setMembers([]);
       return;
     }
 
     const fetchMembers = async () => {
+      console.log("👥 Fetching members for group:", currentGroup.name);
+
       const { data: membersData, error: membersError } = await supabase
         .from("group_members")
         .select("user_id, role")
-        .eq("group_id", activeGroup);
+        .eq("group_id", currentGroup.id);
 
       if (membersError) {
         console.error("Failed to fetch group members:", membersError);
@@ -133,7 +150,7 @@ export default function GroupMembersPage() {
 
       const formatted = membersData.map((member) => {
         const profile = profilesData?.find((p) => p.id === member.user_id);
-        const isCreator = profile?.id === activeUserGroup?.created_by;
+        const isCreator = profile?.id === currentGroup.created_by;
         return {
           id: profile?.id ?? "unknown",
           name: profile?.name ?? "Unknown",
@@ -143,27 +160,25 @@ export default function GroupMembersPage() {
       });
 
       formatted.sort((a, b) => Number(b.isMod) - Number(a.isMod));
+      console.log("✅ Loaded", formatted.length, "members");
       setMembers(formatted);
     };
 
     fetchMembers();
-  }, [activeGroup]);
+  }, [currentGroup]);
 
-  const activeUserGroup = activeGroup
-    ? userGroups.find((g) => g.id === activeGroup)
-    : null;
   const isModerator =
-    activeUserGroup?.role === "mod" ||
-    currentUser?.id === activeUserGroup?.created_by;
+    currentGroup?.role === "mod" ||
+    currentUser?.id === currentGroup?.created_by;
 
   const kickMember = async (memberId: string) => {
-    if (!activeGroup) return;
+    if (!currentGroup) return;
     if (!confirm("Are you sure you want to kick this member?")) return;
 
     const { error } = await supabase
       .from("group_members")
       .delete()
-      .eq("group_id", activeGroup)
+      .eq("group_id", currentGroup.id)
       .eq("user_id", memberId);
 
     if (error) {
@@ -183,8 +198,20 @@ export default function GroupMembersPage() {
     setReportComment("");
   };
 
-  if (!currentUser) {
-    return <div>Loading user...</div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#FFF2CC] flex items-center justify-center">
+        <div className="text-xl">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!currentUser || !currentGroup) {
+    return (
+      <div className="min-h-screen bg-[#FFF2CC] flex items-center justify-center">
+        <div className="text-xl">Group not found</div>
+      </div>
+    );
   }
 
   return (
@@ -198,23 +225,12 @@ export default function GroupMembersPage() {
           <IoArrowBack className="text-2xl" />
         </button>
 
-        <h1 className="text-2xl font-black text-center mb-6">Group Members</h1>
-
-        {userGroups.length === 0 && <p>You are not in any groups.</p>}
-
-        {userGroups.length > 1 && (
-          <select
-            value={activeGroup ?? ""}
-            onChange={(e) => setActiveGroup(e.target.value)}
-            className="mb-4 w-full p-2 rounded border border-gray-300"
-          >
-            {userGroups.map((group) => (
-              <option key={group.id} value={group.id}>
-                {group.name}
-              </option>
-            ))}
-          </select>
-        )}
+        <h1 className="text-2xl font-black text-center mb-2">Group Members</h1>
+        
+        {/* Show current group name */}
+        <h2 className="text-lg font-semibold text-center mb-6 text-gray-700">
+          {currentGroup.name}
+        </h2>
 
         <div className="flex flex-col gap-4">
           {members.map((user, i) => (
