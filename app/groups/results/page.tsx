@@ -91,7 +91,7 @@ export default function Results() {
         {/* Back Button */}
         <button
           className="absolute left-0 top-0 flex items-center p-2"
-          onClick={() => router.push('/')}
+          onClick={() => router.push('/home')}
           aria-label="Back to home"
         >
           <ArrowLeftIcon className="h-6 w-6 text-black" />
@@ -271,22 +271,6 @@ export default function Results() {
             </Axis>
           </div>
         )}
-
-        {/* Navigation */}
-        <div className="flex justify-center mt-8 space-x-4">
-          <button
-            onClick={() => router.push('/')}
-            className="bg-gray-500 text-white px-6 py-2 rounded-lg"
-          >
-            Home
-          </button>
-          <button
-            onClick={() => router.push('/groups/place_yourself')}
-            className="bg-blue-500 text-white px-6 py-2 rounded-lg"
-          >
-            New Round
-          </button>
-        </div>
       </div>
 
       {/* Comments Panel */}
