@@ -97,8 +97,9 @@ const AdminTools: React.FC = () => {
             <h1 className="text-2xl font-black text-black drop-shadow-[2px_2px_0px_white]">
               Admin Tools
             </h1>
-            <FaCrown className="text-black text-lg" />
+            <FaCrown className="text-yellow-600" />
           </div>
+
 
           {/* Dynamic Group Info */}
           <p className="text-[#B4B068] text-xl font-bold mb-1">
@@ -107,6 +108,11 @@ const AdminTools: React.FC = () => {
           <p className="text-[#B4B068] text-xl font-bold mb-6">
             Created: {formattedCreatedDate}
           </p>
+
+          <p className="text-[#B4B068] text-xl font-bold mb-1">Group Name: Robber Barons</p>
+          <p className="text-[#B4B068] text-xl font-bold mb-6">Created: 04/23/2025</p>
+          <p className="text-[#B4B068] text-xl font-bold mb-11"></p>
+
 
           <div className="mb-4">
             <p className="text-2xl font-extrabold flex items-center gap-2">

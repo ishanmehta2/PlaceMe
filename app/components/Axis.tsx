@@ -113,61 +113,65 @@ export default function Axis({
           
           {/* Children (draggables, etc.) */}
           {children}
-        </div>
 
-        {/* Axis labels - positioned outside the grid */}
-        {/* Top */}
-        <div
-          className="absolute left-1/2"
-          style={{
-            ...baseLabelStyle,
-            top: 0,
-            transform: 'translateX(-50%)',
-            background: labelColors.top || 'rgba(255,255,255,0.85)',
-          }}
-        >
-          {labels.top}
-        </div>
-        {/* Bottom */}
-        <div
-          className="absolute left-1/2"
-          style={{
-            ...baseLabelStyle,
-            bottom: 0,
-            transform: 'translateX(-50%)',
-            background: labelColors.bottom || 'rgba(255,255,255,0.85)',
-          }}
-        >
-          {labels.bottom}
-        </div>
-        {/* Left */}
-        <div
-          className="absolute top-1/2"
-          style={{
-            ...baseLabelStyle,
-            left: 0,
-            writingMode: 'vertical-lr',
-            textOrientation: 'mixed',
-            background: labelColors.left || 'rgba(255,255,255,0.85)',
-            transformOrigin: 'center',
-            transform: 'translateY(-50%) rotate(180deg)',
-          }}
-        >
-          {labels.left}
-        </div>
-        {/* Right */}
-        <div
-          className="absolute top-1/2"
-          style={{
-            ...baseLabelStyle,
-            right: 0,
-            transform: 'translateY(-50%)',
-            writingMode: 'vertical-lr',
-            textOrientation: 'mixed',
-            background: labelColors.right || 'rgba(255,255,255,0.85)',
-          }}
-        >
-          {labels.right}
+          {/* Axis labels - positioned inside the grid */}
+          {/* Top */}
+          <div
+            className="absolute left-1/2"
+            style={{
+              ...baseLabelStyle,
+              top: 0,
+              transform: 'translateX(-50%)',
+              background: labelColors.top || 'rgba(255,255,255,0.85)',
+              zIndex: 2,
+            }}
+          >
+            {labels.top}
+          </div>
+          {/* Bottom */}
+          <div
+            className="absolute left-1/2"
+            style={{
+              ...baseLabelStyle,
+              bottom: 0,
+              transform: 'translateX(-50%)',
+              background: labelColors.bottom || 'rgba(255,255,255,0.85)',
+              zIndex: 2,
+            }}
+          >
+            {labels.bottom}
+          </div>
+          {/* Left */}
+          <div
+            className="absolute top-1/2"
+            style={{
+              ...baseLabelStyle,
+              left: 0,
+              writingMode: 'vertical-lr',
+              textOrientation: 'mixed',
+              background: labelColors.left || 'rgba(255,255,255,0.85)',
+              transformOrigin: 'center',
+              transform: 'translateY(-50%) rotate(180deg)',
+              zIndex: 2,
+            }}
+          >
+            {labels.left}
+          </div>
+          {/* Right */}
+          <div
+            className="absolute top-1/2"
+            style={{
+              ...baseLabelStyle,
+              right: 0,
+              transform: 'translateY(-50%)',
+              writingMode: 'vertical-lr',
+              textOrientation: 'mixed',
+              background: labelColors.right || 'rgba(255,255,255,0.85)',
+              zIndex: 2,
+            }}
+          >
+            {labels.right}
+          </div>
         </div>
       </div>
     </div>

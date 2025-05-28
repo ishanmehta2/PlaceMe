@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
 export default function SuggestAxis() {
@@ -10,10 +10,20 @@ export default function SuggestAxis() {
   const [leftLabel, setLeftLabel] = useState('')
   const [rightLabel, setRightLabel] = useState('')
   const [error, setError] = useState('')
+  const [groupName, setGroupName] = useState('')
+
+  useEffect(() => {
+    // Grab the group name from sessionStorage when the component mounts
+    // BUGS 
+    const name = sessionStorage.getItem('currentGroupName')
+    if (name) {
+      setGroupName(name)
+    }
+  }, [])
 
   const handleSubmit = async () => {
-    if (!topLabel && !bottomLabel && !leftLabel && !rightLabel) {
-      setError('Please fill out at least one axis label.')
+    if (!topLabel || !bottomLabel || !leftLabel || !rightLabel) {
+      setError('Please fill out all axes labels.')
       return
     }
 
@@ -55,12 +65,16 @@ export default function SuggestAxis() {
 
       <div className="w-full max-w-sm">
         <div className="bg-[#FFE082] py-4 px-4 rounded-full w-full mx-auto mb-8">
-          <h1 className="text-4xl font-black text-center" style={{
-            textShadow: '3px 3px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000',
-            color: 'white',
-            fontFamily: 'Arial, sans-serif'
-          }}>
-            Suggest Axis
+          <h1
+            className="text-4xl font-black text-center"
+            style={{
+              textShadow:
+                '3px 3px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000',
+              color: 'white',
+              fontFamily: 'Arial, sans-serif'
+            }}
+          >
+            Send Axis{groupName ? ` for ${groupName}` : ''}
           </h1>
         </div>
 
@@ -106,11 +120,15 @@ export default function SuggestAxis() {
             onClick={handleSubmit}
             className="bg-[#60A5FA] py-3 px-10 rounded-full"
           >
-            <span className="text-xl font-black" style={{
-              textShadow: '2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000',
-              color: 'white',
-              fontFamily: 'Arial, sans-serif'
-            }}>
+            <span
+              className="text-xl font-black"
+              style={{
+                textShadow:
+                  '2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000',
+                color: 'white',
+                fontFamily: 'Arial, sans-serif'
+              }}
+            >
               Submit
             </span>
           </button>
