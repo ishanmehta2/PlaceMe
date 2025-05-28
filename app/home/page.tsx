@@ -55,6 +55,8 @@ export default function Home() {
   const [userGroups, setUserGroups] = useState<UserGroup[]>([])
   const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null)
   const [activeGroupCreator, setActiveGroupCreator] = useState<string | null>(null) // Creator ID
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
+
   
   // Different positions for each day (reused from original code)
   const dailyPositions = [
@@ -368,6 +370,46 @@ export default function Home() {
     )
   }
 
+  const leaveGroup = async () => {
+    if (!currentUser || !activeGroup) return;
+  
+    const { error } = await supabase
+      .from('group_members')
+      .delete()
+      .eq('user_id', currentUser.id)
+      .eq('group_id', activeGroup);
+  
+    if (error) {
+      console.error('Error leaving group:', error);
+      return;
+    }
+  
+    setShowLeaveConfirm(false);
+  
+    // Remove the group from user's groups
+    setUserGroups((prevGroups) => {
+      const updatedGroups = prevGroups.filter((group) => group.id !== activeGroup);
+  
+      if (updatedGroups.length > 0) {
+        // Switch to the first remaining group
+        const newGroup = updatedGroups[0];
+        setActiveGroup(newGroup.id);
+        setGroupName(newGroup.name);
+        setActiveGroupCreator(newGroup.created_by || null);
+        fetchDailyPlacements(newGroup.id);
+      } else {
+        // No groups left - clear active group & name
+        setActiveGroup(null);
+        setGroupName('');
+        setDailyPlacements([]);
+        // Optionally navigate or show a message
+        // router.push('/no-groups'); // Or stay on this page and show a message
+      }
+  
+      return updatedGroups;
+    });
+  };
+
 
   return (
     <main className="flex min-h-screen flex-col items-center p-0 bg-[#FFF8E1] relative">
@@ -395,12 +437,18 @@ export default function Home() {
         </div>
   
         <div className="relative mr-6">
-          <button
-            className="w-12 h-12 text-4xl font-black border-2 border-black rounded-2xl shadow-lg"
-            onClick={() => setPlusDropdownOpen(prev => !prev)}
+        <button
+            onClick={() => setPlusDropdownOpen(!plusDropdownOpen)}
+            className="w-12 h-10 flex items-center justify-center bg-white border border-black rounded-lg shadow-md"
+            style={{ fontFamily: 'Arial Black, Arial, sans-serif' }}
           >
-            +
+            <div className="flex flex-row justify-center items-center gap-1">
+              <span className="w-1.5 h-1.5 bg-black rounded-full"></span>
+              <span className="w-1.5 h-1.5 bg-black rounded-full"></span>
+              <span className="w-1.5 h-1.5 bg-black rounded-full"></span>
+            </div>
           </button>
+
           {plusDropdownOpen && (
             <div
               className="absolute right-0 mt-2 w-48 bg-white border border-black rounded-xl shadow-lg z-50 flex flex-col"
@@ -413,7 +461,7 @@ export default function Home() {
                   router.push('/groups/suggest_axis');
                 }}
               >
-                Suggest Axis
+                Send Axes
               </button>
               <div
                 className="border-t"
@@ -428,6 +476,31 @@ export default function Home() {
               >
                 Invite
               </button>
+              <div
+                className="border-t"
+                style={{ borderColor: 'rgba(0,0,0,0.12)', borderWidth: 1 }}
+              />
+              <button
+                className="px-6 py-3 text-lg text-left hover:bg-gray-100 rounded-b-xl"
+                onClick={() => {
+                  setPlusDropdownOpen(false);
+                  router.push('/group_members');
+                }}
+              >
+                Members
+              </button>
+              <div
+                className="border-t"
+                style={{ borderColor: 'rgba(0,0,0,0.12)', borderWidth: 1 }}
+              />
+              {userGroups.length > 0 && currentUser?.id !== activeGroupCreator && (
+                <button
+                  onClick={() => setShowLeaveConfirm(true)}
+                  className="px-6 py-3 text-lg text-left text-red-600 hover:bg-gray-100 rounded-b-xl"
+                >
+                  Leave Group
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -579,13 +652,13 @@ export default function Home() {
             <div className="flex gap-4">
               <button
                 className="px-6 py-3 bg-black text-white rounded-xl font-bold"
-                onClick={() => router.push('/groups/create')}
+                onClick={() => router.push('/groups/create_group')}
               >
                 Create Group
               </button>
               <button
                 className="px-6 py-3 border-2 border-black rounded-xl font-bold"
-                onClick={() => router.push('/groups/join')}
+                onClick={() => router.push('/groups/join_group')}
               >
                 Join Group
               </button>
@@ -626,6 +699,38 @@ export default function Home() {
           ))
         )}
       </div>
+      {showLeaveConfirm && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center z-50"
+          onClick={() => setShowLeaveConfirm(false)}
+        >
+          <div
+            className="bg-white p-6 rounded-xl shadow-lg w-80 text-center"
+            onClick={(e) => e.stopPropagation()}
+            style={{ fontFamily: 'Arial Black, Arial, sans-serif' }}
+          >
+            <h2 className="text-xl font-bold mb-4">Leave Group?</h2>
+            <p className="mb-6">Are you sure you want to leave {groupName}?</p>
+            <div className="flex justify-center gap-4">
+              <button
+                onClick={async () => {
+                  await leaveGroup();
+                  router.push('/home');
+                }}
+                className="px-4 py-2 rounded-lg bg-red-600 border border-black text-white font-bold hover:bg-red-700"
+              >
+                Confirm
+              </button>
+              <button
+                onClick={() => setShowLeaveConfirm(false)}
+                className="px-4 py-2 rounded-lg border border-black hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
