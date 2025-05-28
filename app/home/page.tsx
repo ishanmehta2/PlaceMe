@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/auth/supabase'
 import Axis from '../components/Axis'
+import { FaCrown } from "react-icons/fa";
 
 interface GroupMember {
   id: string
@@ -427,59 +428,85 @@ export default function Home() {
           </button>
 
           {plusDropdownOpen && (
-            <div
-              className="absolute right-0 mt-2 w-48 bg-white border border-black rounded-xl shadow-lg z-50 flex flex-col"
-              style={{ fontFamily: 'Arial Black, Arial, sans-serif' }}
+          <div
+            className="absolute right-0 mt-2 w-52 bg-white border border-black rounded-xl shadow-lg z-50 flex flex-col"
+            style={{ fontFamily: 'Arial Black, Arial, sans-serif' }}
+          >
+            <button
+              className="px-6 py-3 text-base text-left w-full hover:bg-gray-100 rounded-t-xl"
+              onClick={() => {
+                setPlusDropdownOpen(false);
+                router.push(`/groups/suggest_axis?groupId=${activeGroup}`);
+              }}
             >
-              <button
-                className="px-6 py-3 text-lg text-left hover:bg-gray-100 rounded-t-xl"
-                onClick={() => {
-                  setPlusDropdownOpen(false);
-                  router.push(`/groups/suggest_axis?groupId=${activeGroup}`);
-                }}
-              >
-                Send Axes
-              </button>
-              <div
-                className="border-t"
-                style={{ borderColor: 'rgba(0,0,0,0.12)', borderWidth: 1 }}
-              />
-              <button
-                className="px-6 py-3 text-lg text-left hover:bg-gray-100 rounded-b-xl"
-                onClick={() => {
-                  setPlusDropdownOpen(false);
-                  router.push('/groups/group_code');
-                }}
-              >
-                Invite
-              </button>
-              <div
-                className="border-t"
-                style={{ borderColor: 'rgba(0,0,0,0.12)', borderWidth: 1 }}
-              />
-              <button
-                className="px-6 py-3 text-lg text-left hover:bg-gray-100 rounded-b-xl"
-                onClick={() => {
-                  setPlusDropdownOpen(false);
-                  router.push(`/group_members?groupId=${activeGroup}`);
-                }}
-              >
-                Members
-              </button>
-              <div
-                className="border-t"
-                style={{ borderColor: 'rgba(0,0,0,0.12)', borderWidth: 1 }}
-              />
-              {userGroups.length > 0 && currentUser?.id !== activeGroupCreator && (
-                <button
-                  onClick={() => setShowLeaveConfirm(true)}
-                  className="px-6 py-3 text-lg text-left text-red-600 hover:bg-gray-100 rounded-b-xl"
-                >
-                  Leave Group
-                </button>
+              Send Axis
+            </button>
+            <div
+              className="border-t"
+              style={{ borderColor: 'rgba(0,0,0,0.12)', borderWidth: 1 }}
+            />
+            <button
+              className="px-6 py-3 text-base text-left w-full hover:bg-gray-100 rounded-b-xl"
+              onClick={() => {
+                setPlusDropdownOpen(false);
+                router.push('/groups/group_code');
+              }}
+            >
+              Invite
+            </button>
+            <div
+              className="border-t"
+              style={{ borderColor: 'rgba(0,0,0,0.12)', borderWidth: 1 }}
+            />
+            <button
+              className="px-6 py-3 text-base w-full flex items-center justify-between hover:bg-gray-100"
+              onClick={() => {
+                setPlusDropdownOpen(false);
+                router.push(`/group_members?groupId=${activeGroup}`);
+              }}
+            >
+              <span className="truncate text-left flex-grow">Members</span>
+              {currentUser?.id === activeGroupCreator && (
+                <FaCrown
+                  className="text-yellow-500 text-s ml-2 flex-shrink-0"
+                  title="Moderator"
+                  style={{ minWidth: 14, minHeight: 14 }}
+                />
               )}
-            </div>
-          )}
+            </button>
+
+            <div
+              className="border-t"
+              style={{ borderColor: 'rgba(0,0,0,0.12)', borderWidth: 1 }}
+            />
+
+            {userGroups.length > 0 && currentUser?.id !== activeGroupCreator && (
+              <button
+                onClick={() => setShowLeaveConfirm(true)}
+                className="px-6 py-3 text-base text-left text-red-600 hover:bg-gray-100 rounded-b-xl w-full"
+              >
+                Leave Group
+              </button>
+            )}
+
+            {currentUser?.id === activeGroupCreator && (
+              <button
+                className="px-6 py-3 text-base w-full flex items-center justify-between hover:bg-gray-100"
+                onClick={() => {
+                  setPlusDropdownOpen(false);
+                  router.push(`/mod/all_axes?groupId=${activeGroup}`);
+                }}
+              >
+                <span className="truncate text-left flex-grow">Manage Axes</span>
+                <FaCrown
+                  className="text-yellow-500 text-s ml-2 flex-shrink-0"
+                  title="Moderator"
+                  style={{ minWidth: 14, minHeight: 14 }}
+                />
+              </button>
+            )}
+          </div>
+        )}
         </div>
       </header>
   
@@ -523,17 +550,6 @@ export default function Home() {
                   >
                     {group.name}
                   </div>
-                  {currentUser?.id === group.created_by && (
-                    <button
-                      className="text-sm font-bold text-white bg-black px-2 py-1 rounded-lg hover:bg-gray-800 transition"
-                      onClick={() => {
-                        router.push(`/groups/${group.id}/moderator`);
-                        setMenuOpen(false);
-                      }}
-                    >
-                      Mod Tools
-                    </button>
-                  )}
                 </div>
                 {index < userGroups.length - 1 && (
                   <div
