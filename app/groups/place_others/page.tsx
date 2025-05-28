@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useUserData } from '../../hooks/useUserData'
 import { useGroupWorkflow } from '../../hooks/useGroupWorkflow'
+import { useDailyAxis } from '../../hooks/useDailyAxis'
 import { TokenGrid } from '../../components/TokenGrid'
 
 export default function PlaceOthers() {
@@ -19,6 +20,8 @@ export default function PlaceOthers() {
     saveOthersPlacement 
   } = useGroupWorkflow()
   
+  const { dailyAxis, loading: axisLoading, error: axisError } = useDailyAxis(selectedGroup?.id || null)
+  
   const [isSaving, setIsSaving] = useState(false)
 
   // Get the workflow group on component mount
@@ -28,9 +31,15 @@ export default function PlaceOthers() {
 
   // Handle next button
   const handleNext = async () => {
+    if (!dailyAxis) {
+      console.error('Daily axis is not available')
+      return
+    }
+
     try {
       setIsSaving(true)
-      await saveOthersPlacement()
+      console.log('🎯 Saving others placement with dailyAxis:', dailyAxis)
+      await saveOthersPlacement(dailyAxis)
       router.push('/groups/results')
     } catch (err: any) {
       console.error('Error saving positions:', err)
@@ -40,7 +49,7 @@ export default function PlaceOthers() {
     }
   }
 
-  if (loading || userLoading) {
+  if (loading || userLoading || axisLoading) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-[#FFF8E1]">
         <div className="text-2xl">Loading...</div>
@@ -48,11 +57,11 @@ export default function PlaceOthers() {
     )
   }
 
-  if (error || userError) {
+  if (error || userError || axisError) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-[#FFF8E1]">
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-2xl mb-4">
-          {error || userError}
+          {error || userError || axisError}
         </div>
         <button
           onClick={() => router.push('/groups/place_yourself')}
@@ -105,13 +114,13 @@ export default function PlaceOthers() {
                   <TokenGrid
                     tokens={tokens}
                     onPositionChange={handlePositionChange}
-                    axisLabels={{
+                    axisLabels={dailyAxis?.labels || {
                       top: 'Wet Sock',
                       bottom: 'Dry Tongue',
                       left: 'Tree Hugger',
                       right: 'Lumberjack'
                     }}
-                    axisColors={{
+                    axisColors={dailyAxis?.labels.labelColors || {
                       top: 'rgba(251, 207, 232, 0.95)', // Pink
                       bottom: 'rgba(167, 243, 208, 0.95)', // Green
                       left: 'rgba(221, 214, 254, 0.95)', // Purple
@@ -124,7 +133,7 @@ export default function PlaceOthers() {
                 <div className="flex justify-center mt-8">
                   <button
                     onClick={handleNext}
-                    disabled={isSaving}
+                    disabled={isSaving || !dailyAxis}
                     className="bg-[#60A5FA] py-3 px-10 rounded-full disabled:opacity-50"
                   >
                     <span className="text-xl font-black" style={{ 
@@ -132,7 +141,7 @@ export default function PlaceOthers() {
                       color: 'white',
                       fontFamily: 'Arial, sans-serif'
                     }}>
-                      {isSaving ? 'Saving...' : 'Next'}
+                      {isSaving ? 'Saving...' : !dailyAxis ? 'Loading Axis...' : 'Next'}
                     </span>
                   </button>
                 </div>

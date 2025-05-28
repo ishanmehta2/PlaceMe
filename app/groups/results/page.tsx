@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useResults } from '../../hooks/useResults'
 import { useComments } from '../../hooks/useComments'
+import { useDailyAxis } from '../../hooks/useDailyAxis'
 import Axis from '../../components/Axis'
 import Token from '../../components/Token'
 import { ArrowLeftIcon, ChevronDownIcon } from '@heroicons/react/24/solid'
@@ -16,6 +17,7 @@ const GUESS_TOKEN_SIZE = 25
 export default function Results() {
   const router = useRouter()
   const { loading, error, selectedGroup, results } = useResults()
+  const { dailyAxis, loading: axisLoading, error: axisError } = useDailyAxis(selectedGroup?.id || null)
   const [view, setView] = useState<'self' | 'guessed'>('self')
   const [selectedToken, setSelectedToken] = useState<string | null>(null)
   const [newComment, setNewComment] = useState('')
@@ -61,7 +63,7 @@ export default function Results() {
 
   const selectedTokenInfo = getSelectedTokenInfo()
 
-  if (loading) {
+  if (loading || axisLoading) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-[#FFF8E1]">
         <div className="text-2xl">Loading...</div>
@@ -69,11 +71,11 @@ export default function Results() {
     )
   }
 
-  if (error) {
+  if (error || axisError) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-[#FFF8E1]">
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-2xl mb-4">
-          {error}
+          {error || axisError}
         </div>
         <button
           onClick={() => router.push('/groups/place_yourself')}
@@ -157,13 +159,13 @@ export default function Results() {
           <div className="relative">
             <Axis
               size={AXIS_SIZE}
-              labels={{
+              labels={dailyAxis?.labels || {
                 top: 'Wet Sock',
                 bottom: 'Dry Tongue',
                 left: 'Tree Hugger',
                 right: 'Lumberjack'
               }}
-              labelColors={{
+              labelColors={dailyAxis?.labels.labelColors || {
                 top: 'rgba(251, 207, 232, 0.95)',
                 bottom: 'rgba(167, 243, 208, 0.95)',
                 left: 'rgba(221, 214, 254, 0.95)',
@@ -271,6 +273,23 @@ export default function Results() {
             </Axis>
           </div>
         )}
+
+
+        {/* Navigation */}
+        <div className="flex justify-center mt-8 space-x-4">
+          <button
+            onClick={() => router.push('/home')}
+            className="bg-gray-500 text-white px-6 py-2 rounded-lg"
+          >
+            Home
+          </button>
+          <button
+            onClick={() => router.push('/groups/place_yourself')}
+            className="bg-blue-500 text-white px-6 py-2 rounded-lg"
+          >
+            New Round
+          </button>
+        </div>
       </div>
 
       {/* Comments Panel */}

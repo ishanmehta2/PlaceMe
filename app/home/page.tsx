@@ -21,6 +21,7 @@ interface GroupMember {
 
 interface DailyPlacement {
   date: string
+  axis_id: string
   members: GroupMember[]
   labels: {
     top: string
@@ -44,6 +45,22 @@ interface UserGroup {
   created_by?: string // To know the creator of the group
 }
 
+// Colors for consistent member assignment
+const getMemberColor = (index: number): string => {
+  const colors = [
+    '#A855F7', // Purple
+    '#EF4444', // Red
+    '#3B82F6', // Blue
+    '#10B981', // Green
+    '#F59E0B', // Amber
+    '#EC4899', // Pink
+    '#8B5CF6', // Violet
+    '#F97316', // Orange
+  ]
+  
+  return colors[index % colors.length]
+}
+
 export default function Home() {
   const router = useRouter()
   const [activeGroup, setActiveGroup] = useState<string | null>(null)
@@ -58,121 +75,8 @@ export default function Home() {
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
 
   
-  // Different positions for each day (reused from original code)
-  const dailyPositions = [
-    // Day 1 positions
-    [
-      { x: -0.6, y: -0.4 },
-      { x: 0.6, y: -0.6 },
-      { x: -0.6, y: 0.6 },
-      { x: 0.4, y: 0.4 },
-      { x: 0, y: 0 }
-    ],
-    // Day 2 positions
-    [
-      { x: -0.4, y: -0.2 },
-      { x: -0.9, y: -0.4 },
-      { x: -0.2, y: 0.4 },
-      { x: 0.2, y: 0.2 },
-      { x: 0, y: 0 }
-    ],
-    // Day 3 positions
-    [
-      { x: -0.2, y: 0 },
-      { x: 0.2, y: -0.2 },
-      { x: 0, y: 0.2 },
-      { x: 0, y: 0 },
-      { x: -0.4, y: -0.4 }
-    ],
-    // Day 4 positions
-    [
-      { x: 0, y: 0.2 },
-      { x: 0, y: -0.2 },
-      { x: 0.2, y: 0 },
-      { x: -0.2, y: 0 },
-      { x: 0.4, y: -0.4 }
-    ],
-    // Day 5 positions
-    [
-      { x: 0.2, y: 0 },
-      { x: -0.2, y: 0 },
-      { x: 0, y: 0.2 },
-      { x: 0, y: -0.2 },
-      { x: 0.4, y: -0.4 }
-    ]
-  ]
-  
-  // Different axis labels for each day (reused from original code)
-  const dailyLabels = [
-    // Day 1 labels
-    {
-      top: 'Wet Sock',
-      bottom: 'Dry Tongue',
-      left: 'Tree Hugger',
-      right: 'Lumberjack',
-      labelColors: {
-        top: 'rgba(251, 207, 232, 0.95)', // Pink
-        bottom: 'rgba(167, 243, 208, 0.95)', // Green
-        left: 'rgba(221, 214, 254, 0.95)', // Purple
-        right: 'rgba(253, 230, 138, 0.95)' // Yellow
-      }
-    },
-    // Day 2 labels
-    {
-      top: 'Early Bird',
-      bottom: 'Last Minute',
-      left: 'Solo Traveler',
-      right: 'Group Explorer',
-      labelColors: {
-        top: 'rgba(251, 207, 232, 0.95)', // Pink
-        bottom: 'rgba(167, 243, 208, 0.95)', // Green
-        left: 'rgba(221, 214, 254, 0.95)', // Purple
-        right: 'rgba(253, 230, 138, 0.95)' // Yellow
-      }
-    },
-    // Day 3 labels
-    {
-      top: 'Morning Person',
-      bottom: 'Night Owl',
-      left: 'Planner',
-      right: 'Spontaneous',
-      labelColors: {
-        top: 'rgba(167, 243, 208, 0.95)', // Green
-        bottom: 'rgba(251, 207, 232, 0.95)', // Pink
-        left: 'rgba(253, 230, 138, 0.95)', // Yellow
-        right: 'rgba(221, 214, 254, 0.95)' // Purple
-      }
-    },
-    // Day 4 labels
-    {
-      top: 'Cat Person',
-      bottom: 'Dog Person',
-      left: 'Beach',
-      right: 'Mountains',
-      labelColors: {
-        top: 'rgba(253, 230, 138, 0.95)', // Yellow
-        bottom: 'rgba(221, 214, 254, 0.95)', // Purple
-        left: 'rgba(251, 207, 232, 0.95)', // Pink
-        right: 'rgba(167, 243, 208, 0.95)' // Green
-      }
-    },
-    // Day 5 labels
-    {
-      top: 'Sweet Tooth',
-      bottom: 'Savory Fan',
-      left: 'City Life',
-      right: 'Country Living',
-      labelColors: {
-        top: 'rgba(221, 214, 254, 0.95)', // Purple
-        bottom: 'rgba(253, 230, 138, 0.95)', // Yellow
-        left: 'rgba(167, 243, 208, 0.95)', // Green
-        right: 'rgba(251, 207, 232, 0.95)' // Pink
-      }
-    }
-  ]
-
-   // Fetch user and their groups on mount
-   useEffect(() => {
+  // Fetch user and their groups on mount
+  useEffect(() => {
     const fetchUserAndGroups = async () => {
       setLoading(true);
 
@@ -250,12 +154,48 @@ export default function Home() {
     fetchUserAndGroups();
   }, [router]);
 
-  // Fetch daily placements for a group
+  // Simplified approach - get sessions directly from placement tables
   const fetchDailyPlacements = async (groupId: string) => {
     try {
+      console.log('🔍 Fetching placement sessions for group:', groupId);
+
+      // 1️⃣ Get all self-placements for this group
+      const { data: selfPlacements, error: selfError } = await supabase
+        .from('place_yourself')
+        .select('*')
+        .eq('group_id', groupId)
+        .order('created_at', { ascending: false });
+
+      if (selfError) {
+        console.error("Error fetching self placements:", selfError);
+        return;
+      }
+
+      if (!selfPlacements || selfPlacements.length === 0) {
+        console.log('No self-placements found for this group');
+        setDailyPlacements([]);
+        return;
+      }
+
+      console.log('👤 Found', selfPlacements.length, 'self-placements');
+
+      // 2️⃣ Get all others-placements for this group  
+      const { data: othersPlacements, error: othersError } = await supabase
+        .from('place_others')
+        .select('*')
+        .eq('group_id', groupId)
+        .order('created_at', { ascending: false });
+
+      if (othersError) {
+        console.error("Error fetching others placements:", othersError);
+      }
+
+      console.log('👥 Found', othersPlacements?.length || 0, 'others-placements');
+
+      // 3️⃣ Get group members for color assignment
       const { data: membersData, error: membersError } = await supabase
         .from('group_members')
-        .select('id, role, user_id, joined_at')
+        .select('user_id')
         .eq('group_id', groupId);
       
       if (membersError) {
@@ -263,8 +203,9 @@ export default function Home() {
         return;
       }
       
-      const memberUserIds = membersData.map(member => member.user_id);
+      const memberUserIds = membersData?.map(member => member.user_id) || [];
       
+      // 4️⃣ Get profiles for all members
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('id, name, avatar_url')
@@ -274,45 +215,115 @@ export default function Home() {
         console.error("Error fetching profiles:", profilesError);
         return;
       }
-      
-      const memberColors = ['#A855F7', '#EF4444', '#3B82F6', '#10B981', '#F59E42'];
-      
-      const groupMembers = membersData.map((member, index) => {
-        const profile = profiles.find(p => p.id === member.user_id);
-        return {
-          id: member.user_id,
-          name: profile?.name || `User ${index + 1}`,
-          avatarUrl: profile?.avatar_url,
-          imageUrl: profile?.avatar_url || `https://i.pravatar.cc/150?img=${index + 1}`,
-          color: memberColors[index % memberColors.length],
-          borderColor: memberColors[index % memberColors.length]
-        };
+
+      // 5️⃣ Create member color mapping
+      const memberColorMap = new Map();
+      memberUserIds.forEach((userId, index) => {
+        memberColorMap.set(userId, getMemberColor(index));
       });
-      
-      // Generate mock placements for the last 5 days
-      const currentDate = new Date();
-      const dates = Array.from({ length: 5 }, (_, i) => {
-        const date = new Date();
-        date.setDate(currentDate.getDate() - i);
-        return date;
+
+      // 6️⃣ Group placements by axis_id to create sessions
+      const sessionMap = new Map();
+
+      // Process self-placements first
+      selfPlacements.forEach(placement => {
+        const axisId = placement.axis_id || 'unknown';
+        
+        if (!sessionMap.has(axisId)) {
+          sessionMap.set(axisId, {
+            axis_id: axisId,
+            created_at: placement.created_at,
+            labels: {
+              top: placement.top_label,
+              bottom: placement.bottom_label,
+              left: placement.left_label,
+              right: placement.right_label,
+              labelColors: {
+                top: 'rgba(251, 207, 232, 0.95)', // Pink
+                bottom: 'rgba(167, 243, 208, 0.95)', // Green  
+                left: 'rgba(221, 214, 254, 0.95)', // Purple
+                right: 'rgba(253, 230, 138, 0.95)' // Yellow
+              }
+            },
+            members: [],
+            processedUsers: new Set()
+          });
+        }
+
+        const session = sessionMap.get(axisId);
+        
+        // Add self-placement if not already processed
+        if (!session.processedUsers.has(placement.user_id)) {
+          const profile = profiles?.find(p => p.id === placement.user_id);
+          const color = memberColorMap.get(placement.user_id) || getMemberColor(0);
+          
+          session.members.push({
+            id: placement.user_id,
+            name: profile?.name || placement.first_name || 'Unknown',
+            imageUrl: profile?.avatar_url || `https://i.pravatar.cc/150?img=${Math.floor(Math.random() * 50)}`,
+            position: {
+              x: (placement.position_x - 50) / 50, // Convert 0-100% to -1 to 1
+              y: (placement.position_y - 50) / 50
+            },
+            color: color,
+            borderColor: color
+          });
+          
+          session.processedUsers.add(placement.user_id);
+        }
       });
-      
-      const mockPlacements = dates.map((date, index) => ({
-        date: formatDate(date),
-        members: groupMembers.map((member, memberIndex) => ({
-          ...member,
-          position: dailyPositions[index % dailyPositions.length][memberIndex % 5]
-        })),
-        labels: dailyLabels[index % dailyLabels.length]
-      }));
-      
-      setDailyPlacements(mockPlacements);
+
+      // Add others-placements to existing sessions
+      if (othersPlacements) {
+        othersPlacements.forEach(placement => {
+          const axisId = placement.axis_id || 'unknown';
+          
+          // Only add to sessions that already exist (have self-placements)
+          if (sessionMap.has(axisId)) {
+            const session = sessionMap.get(axisId);
+            
+            // Add if not already processed
+            if (!session.processedUsers.has(placement.placed_user_id)) {
+              const profile = profiles?.find(p => p.id === placement.placed_user_id);
+              const color = memberColorMap.get(placement.placed_user_id) || getMemberColor(0);
+              
+              session.members.push({
+                id: placement.placed_user_id,
+                name: profile?.name || placement.first_name || 'Unknown',
+                imageUrl: profile?.avatar_url || `https://i.pravatar.cc/150?img=${Math.floor(Math.random() * 50)}`,
+                position: {
+                  x: (placement.position_x - 50) / 50,
+                  y: (placement.position_y - 50) / 50
+                },
+                color: color,
+                borderColor: color
+              });
+              
+              session.processedUsers.add(placement.placed_user_id);
+            }
+          }
+        });
+      }
+
+      // 7️⃣ Convert sessions to display format and sort by most recent
+      const sessions = Array.from(sessionMap.values())
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, 10) // Limit to 10 most recent
+        .map(session => ({
+          date: formatDate(new Date(session.created_at)),
+          axis_id: session.axis_id,
+          members: session.members,
+          labels: session.labels
+        }));
+
+      console.log('📋 Final sessions:', sessions.length);
+      setDailyPlacements(sessions);
       
     } catch (error) {
-      console.error("Error fetching daily placements:", error);
+      console.error("Error fetching placement sessions:", error);
+      setDailyPlacements([]);
     }
   };
-
   // Switch to a different group
   const switchGroup = async (groupId: string) => {
     setLoading(true);
@@ -330,38 +341,6 @@ export default function Home() {
     return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
   }
   
-  const getMemberColor = (memberId: string): string => {
-    // Assign a consistent color to each member
-    const colors = [
-      'bg-purple-500',
-      'bg-red-500',
-      'bg-pink-500',
-      'bg-green-500',
-      'bg-blue-500',
-      'bg-yellow-500'
-    ]
-    
-    // Use the member's ID to determine their color
-    const colorIndex = parseInt(memberId) % colors.length
-    return colors[colorIndex]
-  }
-  
-  const getBorderColor = (memberId: string): string => {
-    // Assign a consistent border color to each member
-    const colors = [
-      'border-purple-700',
-      'border-red-700',
-      'border-pink-700',
-      'border-green-700',
-      'border-blue-700',
-      'border-yellow-700'
-    ]
-    
-    // Use the member's ID to determine their color
-    const colorIndex = parseInt(memberId) % colors.length
-    return colors[colorIndex]
-  }
-  
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#FFF8E1] p-4">
@@ -369,6 +348,7 @@ export default function Home() {
       </main>
     )
   }
+
 
   const leaveGroup = async () => {
     if (!currentUser || !activeGroup) return;
@@ -410,7 +390,6 @@ export default function Home() {
     });
   };
 
-
   return (
     <main className="flex min-h-screen flex-col items-center p-0 bg-[#FFF8E1] relative">
       {/* Header */}
@@ -432,8 +411,6 @@ export default function Home() {
           >
             {groupName || 'Select a Group'}
           </span>
-  
-          {/* Moderator Tools button - only show if currentUser is group creator */}
         </div>
   
         <div className="relative mr-6">
@@ -457,7 +434,7 @@ export default function Home() {
               <button
                 className="px-6 py-3 text-lg text-left hover:bg-gray-100 rounded-t-xl"
                 onClick={() => {
-                  setPlusDropdownOpen(false); // if this is part of your dropdown logic
+                  setPlusDropdownOpen(false);
                   router.push('/groups/suggest_axis');
                 }}
               >
@@ -567,7 +544,6 @@ export default function Home() {
               </div>
             ))}
 
-  
             {userGroups.length === 0 && (
               <div className="ml-2 text-xl text-gray-600 mb-4">No groups yet</div>
             )}
@@ -664,14 +640,25 @@ export default function Home() {
               </button>
             </div>
           </div>
+        ) : dailyPlacements.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-[70vh]">
+            <div className="text-2xl font-bold mb-4">No activity yet!</div>
+            <div className="text-lg mb-6">Start by placing yourself to see results here.</div>
+            <button
+              className="px-6 py-3 bg-black text-white rounded-xl font-bold"
+              onClick={() => router.push('/groups/place_yourself')}
+            >
+              Place Yourself
+            </button>
+          </div>
         ) : (
           dailyPlacements.map((placement) => (
-            <div key={placement.date} className="w-full max-w-[430px] mb-8 flex flex-col items-center">
+            <div key={`${placement.axis_id}-${placement.date}`} className="w-full max-w-[430px] mb-8 flex flex-col items-center">
               <h2 className="text-2xl font-black mb-2" style={{ fontFamily: 'Arial, sans-serif' }}>
                 {placement.date}
               </h2>
               <div
-                onClick={() => activeGroup && router.push(`/groups/${activeGroup}/results`)}
+                onClick={() => activeGroup && router.push(`/groups/results`)}
                 className="cursor-pointer w-full max-w-[calc(100vw-3rem)] sm:max-w-[calc(100vw-3rem)] md:max-w-[430px]"
               >
                 <Axis
@@ -687,8 +674,8 @@ export default function Home() {
                   tokens={placement.members.map((member) => ({
                     id: member.id,
                     name: member.name,
-                    x: member.position?.x || 0.5,
-                    y: member.position?.y || 0.5,
+                    x: member.position?.x || 0,
+                    y: member.position?.y || 0,
                     color: member.color,
                     borderColor: member.borderColor,
                     imageUrl: member.imageUrl,

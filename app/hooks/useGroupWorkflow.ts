@@ -29,6 +29,30 @@ interface GroupMember {
   role: string
 }
 
+interface DailyAxis {
+  id: string
+  group_id: string
+  vertical_axis_pair_id: string
+  horizontal_axis_pair_id: string
+  left_label: string
+  right_label: string
+  top_label: string
+  bottom_label: string
+  date_generated: string
+  labels: {
+    top: string
+    bottom: string
+    left: string
+    right: string
+    labelColors: {
+      top: string
+      bottom: string
+      left: string
+      right: string
+    }
+  }
+}
+
 // Colors for members (consistent assignment)
 const getMemberColor = (index: number): string => {
   const colors = [
@@ -287,16 +311,27 @@ export const useGroupWorkflow = () => {
     }
   }
 
-  // Save self placement
-  const saveSelfPlacement = async (position: Position, userName: string, firstName: string) => {
+  const saveSelfPlacement = async (position: Position, userName: string, firstName: string, dailyAxis: DailyAxis, saveAxisToDatabase: Function) => {
     if (!selectedGroup || !currentUserId) {
       throw new Error('Missing user or group information')
     }
     
+    if (!dailyAxis) {
+      throw new Error('Missing daily axis information')
+    }
+    
     try {
+      console.log('🔄 Saving self placement with session-based axis data')
+      
+      // First, save the axes to database and get the real database ID
+      const realAxisId = await saveAxisToDatabase(dailyAxis)
+      
       // Convert position from pixels to percent if needed
       const percentX = typeof position.x === 'number' && position.x > 100 ? (position.x / 300) * 100 : position.x
       const percentY = typeof position.y === 'number' && position.y > 100 ? (position.y / 300) * 100 : position.y
+      
+      // Get today's date for consistency
+      const today = new Date().toISOString().split('T')[0]
       
       const { error: saveError } = await supabase
         .from('place_yourself')
@@ -308,27 +343,44 @@ export const useGroupWorkflow = () => {
           first_name: firstName,
           position_x: percentX,
           position_y: percentY,
-          top_label: 'Wet Sock',
-          bottom_label: 'Dry Tongue',
-          left_label: 'Tree Hugger',
-          right_label: 'Lumberjack',
-          created_at: new Date().toISOString()
+          top_label: dailyAxis.labels.top,
+          bottom_label: dailyAxis.labels.bottom,
+          left_label: dailyAxis.labels.left,
+          right_label: dailyAxis.labels.right,
+          axis_id: realAxisId, // Use the real database ID
+          vertical_axis_pair_id: dailyAxis.vertical_axis_pair_id,
+          horizontal_axis_pair_id: dailyAxis.horizontal_axis_pair_id,
+          date_placed: today
         })
       
-      if (saveError) throw saveError
+      if (saveError) {
+        console.error('❌ Error saving self placement:', saveError)
+        throw saveError
+      }
+      
+      console.log('✅ Successfully saved self placement')
     } catch (err: any) {
       console.error('Error saving self placement:', err)
       throw new Error(err.message || 'Failed to save your placement')
     }
   }
 
-  // Save others placements
-  const saveOthersPlacement = async () => {
+  // Save others placements - UPDATED for dual axis support
+  const saveOthersPlacement = async (dailyAxis: DailyAxis) => {
     if (!selectedGroup || !currentUserId) {
       throw new Error('Missing user or group information')
     }
     
+    if (!dailyAxis) {
+      throw new Error('Missing daily axis information')
+    }
+    
     try {
+      console.log('🔄 Saving others placements with dual axis data')
+      
+      // Get today's date for consistency
+      const today = new Date().toISOString().split('T')[0]
+      
       for (const token of tokens) {
         const { error: saveError } = await supabase
           .from('place_others')
@@ -341,15 +393,20 @@ export const useGroupWorkflow = () => {
             first_name: token.firstName,
             position_x: token.position.x,
             position_y: token.position.y,
-            top_label: 'Wet Sock',
-            bottom_label: 'Dry Tongue',
-            left_label: 'Tree Hugger',
-            right_label: 'Lumberjack',
-            created_at: new Date().toISOString()
+            top_label: dailyAxis.labels.top,
+            bottom_label: dailyAxis.labels.bottom,
+            left_label: dailyAxis.labels.left,
+            right_label: dailyAxis.labels.right,
+            axis_id: dailyAxis.id,
+            vertical_axis_pair_id: dailyAxis.vertical_axis_pair_id,
+            horizontal_axis_pair_id: dailyAxis.horizontal_axis_pair_id,
+            date_placed: today
           })
         
         if (saveError) {
-          console.error(`Error saving position for ${token.firstName}:`, saveError)
+          console.error(`❌ Error saving position for ${token.firstName}:`, saveError)
+        } else {
+          console.log(`✅ Successfully saved position for ${token.firstName}`)
         }
       }
     } catch (err: any) {
