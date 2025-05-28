@@ -20,7 +20,7 @@ interface UserGroup {
   name: string;
   invite_code: string;
   role: string;
-  created_by?: string;
+  created_by: string;
 }
 
 export default function GroupMembersPage() {
@@ -29,14 +29,12 @@ export default function GroupMembersPage() {
   const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null);
   const [userGroups, setUserGroups] = useState<UserGroup[]>([]);
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
-  const [activeGroupCreator, setActiveGroupCreator] = useState<string | null>(null);
 
   const [members, setMembers] = useState<Member[]>([]);
   const [openMenuIndex, setOpenMenuIndex] = useState<number | null>(null);
   const [reportingIndex, setReportingIndex] = useState<number | null>(null);
   const [reportComment, setReportComment] = useState("");
 
-  // Load current user and their groups
   useEffect(() => {
     const fetchUserAndGroups = async () => {
       const {
@@ -51,7 +49,6 @@ export default function GroupMembersPage() {
       }
       setCurrentUser(user);
 
-      // Fetch memberships for current user
       const { data: memberships, error: memErr } = await supabase
         .from("group_members")
         .select("group_id, role")
@@ -69,7 +66,6 @@ export default function GroupMembersPage() {
 
       const groupIds = memberships.map((m) => m.group_id);
 
-      // Fetch group details including created_by
       const { data: groupsData, error: groupErr } = await supabase
         .from("groups")
         .select("id, name, invite_code, created_by")
@@ -80,7 +76,7 @@ export default function GroupMembersPage() {
         return;
       }
 
-      const formattedGroups = groupsData.map((group) => {
+      const formattedGroups: UserGroup[] = groupsData.map((group) => {
         const membership = memberships.find((m) => m.group_id === group.id);
         return {
           id: group.id,
@@ -94,16 +90,13 @@ export default function GroupMembersPage() {
       setUserGroups(formattedGroups);
 
       if (formattedGroups.length > 0) {
-        const firstGroup = formattedGroups[0];
-        setActiveGroup(firstGroup.id);
-        setActiveGroupCreator(firstGroup.created_by ?? null);
+        setActiveGroup(formattedGroups[0].id);
       }
     };
 
     fetchUserAndGroups();
   }, [router]);
 
-  // Fetch members when activeGroup changes
   useEffect(() => {
     if (!activeGroup) {
       setMembers([]);
@@ -111,7 +104,6 @@ export default function GroupMembersPage() {
     }
 
     const fetchMembers = async () => {
-      // Fetch group_members and roles
       const { data: membersData, error: membersError } = await supabase
         .from("group_members")
         .select("user_id, role")
@@ -129,7 +121,6 @@ export default function GroupMembersPage() {
 
       const userIds = membersData.map((m) => m.user_id);
 
-      // Fetch profiles for those users
       const { data: profilesData, error: profilesError } = await supabase
         .from("profiles")
         .select("id, name, avatar_url")
@@ -142,34 +133,31 @@ export default function GroupMembersPage() {
 
       const formatted = membersData.map((member) => {
         const profile = profilesData?.find((p) => p.id === member.user_id);
+        const isCreator = profile?.id === activeUserGroup?.created_by;
         return {
           id: profile?.id ?? "unknown",
           name: profile?.name ?? "Unknown",
           avatar_url: profile?.avatar_url ?? null,
-          isMod: member.role === "mod",
+          isMod: member.role === "mod" || isCreator,
         };
       });
 
-      // Sort moderators first
       formatted.sort((a, b) => Number(b.isMod) - Number(a.isMod));
-
       setMembers(formatted);
     };
 
     fetchMembers();
   }, [activeGroup]);
 
-  // Determine if current user is mod or creator of active group
   const activeUserGroup = activeGroup
     ? userGroups.find((g) => g.id === activeGroup)
     : null;
   const isModerator =
-    activeUserGroup?.role === "mod" || currentUser?.id === activeUserGroup?.created_by;
+    activeUserGroup?.role === "mod" ||
+    currentUser?.id === activeUserGroup?.created_by;
 
-  // Kick member handler
   const kickMember = async (memberId: string) => {
     if (!activeGroup) return;
-
     if (!confirm("Are you sure you want to kick this member?")) return;
 
     const { error } = await supabase
@@ -182,46 +170,8 @@ export default function GroupMembersPage() {
       alert("Failed to kick member: " + error.message);
     } else {
       alert("Member kicked successfully.");
-      // Refresh members list
-      const { data: membersData, error: membersError } = await supabase
-        .from("group_members")
-        .select("user_id, role")
-        .eq("group_id", activeGroup);
-
-      if (membersError) {
-        console.error("Failed to fetch group members:", membersError);
-        return;
-      }
-
-      if (!membersData || membersData.length === 0) {
-        setMembers([]);
-        return;
-      }
-
-      const userIds = membersData.map((m) => m.user_id);
-
-      const { data: profilesData, error: profilesError } = await supabase
-        .from("profiles")
-        .select("id, name, avatar_url")
-        .in("id", userIds);
-
-      if (profilesError) {
-        console.error("Failed to fetch profiles:", profilesError);
-        return;
-      }
-
-      const formatted = membersData.map((member) => {
-        const profile = profilesData?.find((p) => p.id === member.user_id);
-        return {
-          id: profile?.id ?? "unknown",
-          name: profile?.name ?? "Unknown",
-          avatar_url: profile?.avatar_url ?? null,
-          isMod: member.role === "mod",
-        };
-      });
-
-      formatted.sort((a, b) => Number(b.isMod) - Number(a.isMod));
-      setMembers(formatted);
+      const updated = members.filter((m) => m.id !== memberId);
+      setMembers(updated);
     }
   };
 
@@ -240,12 +190,10 @@ export default function GroupMembersPage() {
   return (
     <div className="min-h-screen bg-[#FFF2CC] text-black p-4 flex flex-col items-center">
       <div className="w-full max-w-md relative">
-        {/* Back Arrow Button */}
         <button
           onClick={() => router.push("/home")}
           className="absolute left-0 top-0 mt-2 ml-2 p-2 rounded-full hover:bg-gray-200 transition"
           aria-label="Go back to home"
-          title="Go back to home"
         >
           <IoArrowBack className="text-2xl" />
         </button>
@@ -290,15 +238,12 @@ export default function GroupMembersPage() {
                 )}
                 <span className="font-semibold">{user.name}</span>
                 {user.isMod && (
-                  <FaCrown
-                    className="text-yellow-500 text-xl ml-1"
-                    title="Moderator"
-                  />
+                  <FaCrown className="text-yellow-500 text-xl ml-1" title="Moderator" />
                 )}
               </div>
 
               <div className="flex items-center gap-2">
-                {!user.isMod && (
+                {user.id !== currentUser.id && !user.isMod && (
                   <div className="relative">
                     <button
                       onClick={() =>
@@ -330,12 +275,10 @@ export default function GroupMembersPage() {
                   </div>
                 )}
 
-                {/* Kick Member Button: show if current user is mod/creator and member isn't mod/creator */}
                 {isModerator && user.id !== currentUser.id && !user.isMod && (
                   <button
                     onClick={() => kickMember(user.id)}
                     className="bg-red-600 text-white px-3 py-1 rounded-md text-sm font-semibold hover:bg-red-700"
-                    title="Kick Member"
                   >
                     Kick
                   </button>
