@@ -484,6 +484,24 @@ export default function Home() {
               <button
                 onClick={() => setShowLeaveConfirm(true)}
                 className="px-6 py-3 text-base text-left text-red-600 hover:bg-gray-100 rounded-b-xl w-full"
+                className="px-6 py-3 text-lg text-left hover:bg-gray-100 rounded-t-xl"
+                onClick={() => {
+                  setPlusDropdownOpen(false);
+                  router.push(`/groups/suggest_axis?groupId=${activeGroup}`);
+                }}
+              >
+                Send Axes
+              </button>
+              <div
+                className="border-t"
+                style={{ borderColor: 'rgba(0,0,0,0.12)', borderWidth: 1 }}
+              />
+              <button
+                className="px-6 py-3 text-lg text-left hover:bg-gray-100 rounded-b-xl"
+                onClick={() => {
+                  setPlusDropdownOpen(false);
+                  router.push(`/groups/group_code?groupId=${activeGroup}`);
+                }}
               >
                 Leave Group
               </button>
