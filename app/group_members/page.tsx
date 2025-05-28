@@ -189,14 +189,57 @@ export default function GroupMembersPage() {
       setMembers(updated);
     }
   };
-
-  const handleReportSubmit = () => {
-    if (reportingIndex === null) return;
+  
+  const handleReportSubmit = async () => {
+    if (reportingIndex === null || !currentGroup || !currentUser) return;
+  
+    if (!reportComment.trim()) {
+      alert("Please enter a reason for reporting.");
+      return;
+    }
+  
+    // currentUser is guaranteed non-null here due to the early return above
+    const {
+      data: { user: authUser },
+      error: userError,
+    } = await supabase.auth.getUser();
+  
+    console.log("Supabase auth user ID:", authUser?.id);
+    console.log("currentUser.id:", currentUser.id);
+  
+    if (userError) {
+      console.error("Error fetching auth user:", userError);
+      alert("Authentication error. Please try logging in again.");
+      return;
+    }
+  
+    if (!authUser || authUser.id !== currentUser.id) {
+      alert("User session mismatch or not logged in.");
+      return;
+    }
+  
     const reportedUser = members[reportingIndex];
-    console.log("Reported:", reportedUser.name, "Comment:", reportComment);
-    setReportingIndex(null);
-    setReportComment("");
+  
+    const { error } = await supabase.from("user_reports").insert([
+      {
+        user_reported: reportedUser.id,
+        user_reporting: authUser.id,
+        group_id: currentGroup.id,
+        comment: reportComment.trim(),
+      },
+    ]);
+  
+    if (error) {
+      console.error("Error submitting report:", error.message);
+      alert(`Failed to submit report: ${error.message}`);
+
+    } else {
+      alert("Report submitted successfully.");
+      setReportingIndex(null);
+      setReportComment("");
+    }
   };
+  
 
   if (loading) {
     return (
@@ -306,7 +349,7 @@ export default function GroupMembersPage() {
                   <h2 className="font-bold text-lg mb-2">Report</h2>
                   <textarea
                     className="w-full border border-gray-300 rounded-md p-2 text-sm mb-3"
-                    placeholder="Optional comment"
+                    placeholder="Comment"
                     value={reportComment}
                     onChange={(e) => setReportComment(e.target.value)}
                   />
