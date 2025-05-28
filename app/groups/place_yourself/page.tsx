@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation'
 import { useUserData } from '../../hooks/useUserData'
 import { useGroupWorkflow } from '../../hooks/useGroupWorkflow'
 import { TokenGrid } from '../../components/TokenGrid'
+import { useDailyAxis } from '../../hooks/useDailyAxis'
+import { DndContext, useSensor, useSensors, PointerSensor } from '@dnd-kit/core'
+import { restrictToWindowEdges } from '@dnd-kit/modifiers'
 
 // Constants for sizing
 const AXIS_WIDTH = 300
@@ -22,29 +25,54 @@ export default function PlaceYourself() {
     saveSelfPlacement 
   } = useGroupWorkflow()
   
+  const { dailyAxis, loading: axisLoading, error: axisError, saveAxisToDatabase } = useDailyAxis(selectedGroup?.id || null)
+  
   const [isSaving, setIsSaving] = useState(false)
+  const [showHomeConfirm, setShowHomeConfirm] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  // Position in the middle of the neutral zone
-  const [userPosition, setUserPosition] = useState({ 
-    x: AXIS_WIDTH / 2, 
-    y: AXIS_HEIGHT + (NEUTRAL_ZONE_HEIGHT / 2) 
-  })
-
+  const [userPosition, setUserPosition] = useState({ x: AXIS_WIDTH / 2, y: AXIS_HEIGHT + (NEUTRAL_ZONE_HEIGHT / 2) })
+  
   // Initialize workflow on component mount
   useEffect(() => {
     initializeWorkflow()
   }, [])
 
-  // Handle next button
+  // Handle home button click with confirmation
+  const handleHomeClick = () => {
+    setShowHomeConfirm(true)
+  }
+
+  // Confirm navigation to home (losing current axes)
+  const confirmGoHome = () => {
+    setShowHomeConfirm(false)
+    router.push('/home')
+  }
+
+  // Cancel home navigation
+  const cancelGoHome = () => {
+    setShowHomeConfirm(false)
+  }
+
+  // Proceed to place others
   const handleNext = async () => {
     if (!selectedGroup || !userName || !firstName) {
       setError('Missing required information. Please try again.')
       return
     }
 
+    if (!dailyAxis) {
+      setError('Daily axis is still loading. Please wait a moment and try again.')
+      return
+    }
+
     try {
       setIsSaving(true)
-      await saveSelfPlacement(userPosition, userName, firstName)
+      console.log('🎯 Saving with session-based dailyAxis:', dailyAxis)
+      
+      // Pass the saveAxisToDatabase function to saveSelfPlacement
+      await saveSelfPlacement(userPosition, userName, firstName, dailyAxis, saveAxisToDatabase)
+      
+      // Navigate to place_others
       router.push('/groups/place_others')
     } catch (err: any) {
       console.error('Error saving positions:', err)
@@ -54,7 +82,7 @@ export default function PlaceYourself() {
     }
   }
 
-  if (loading || userLoading) {
+  if (loading || userLoading || axisLoading) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-[#FFF8E1]">
         <div className="text-2xl">Loading...</div>
@@ -62,11 +90,11 @@ export default function PlaceYourself() {
     )
   }
 
-  if (groupError || userError || error) {
+  if (error || userError || axisError) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-[#FFF8E1]">
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-2xl mb-4">
-          {groupError || userError || error}
+          {error || userError || axisError}
         </div>
         <button
           onClick={() => router.push('/groups/place_yourself')}
@@ -109,13 +137,13 @@ export default function PlaceYourself() {
             }]}
             onPositionChange={(_, position) => setUserPosition(position)}
             onPlacementChange={() => {}} // Not needed for single token
-            axisLabels={{
+            axisLabels={dailyAxis?.labels || {
               top: 'Wet Sock',
               bottom: 'Dry Tongue',
               left: 'Tree Hugger',
               right: 'Lumberjack'
             }}
-            axisColors={{
+            axisColors={dailyAxis?.labels.labelColors || {
               top: 'rgba(251, 207, 232, 0.95)', // Pink
               bottom: 'rgba(167, 243, 208, 0.95)', // Green
               left: 'rgba(221, 214, 254, 0.95)', // Purple
@@ -127,11 +155,26 @@ export default function PlaceYourself() {
           />
         </div>
         
-        {/* Next Button */}
-        <div className="flex justify-center mt-8">
+        {/* Navigation Buttons */}
+        <div className="flex justify-center mt-8 space-x-4">
+          {/* Home Button */}
+          <button
+            onClick={handleHomeClick}
+            className="bg-gray-500 text-white px-6 py-3 rounded-full hover:bg-gray-600 transition"
+          >
+            <span className="text-lg font-black" style={{ 
+              textShadow: '2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000',
+              color: 'white',
+              fontFamily: 'Arial, sans-serif'
+            }}>
+              Home
+            </span>
+          </button>
+
+          {/* Next Button */}
           <button
             onClick={handleNext}
-            disabled={isSaving || !selectedGroup}
+            disabled={isSaving || !selectedGroup || !dailyAxis}
             className="bg-[#60A5FA] py-3 px-10 rounded-full disabled:opacity-50"
           >
             <span className="text-xl font-black" style={{ 
@@ -139,11 +182,39 @@ export default function PlaceYourself() {
               color: 'white',
               fontFamily: 'Arial, sans-serif'
             }}>
-              {isSaving ? 'Saving...' : 'Next'}
+              {isSaving ? 'Saving...' : !dailyAxis ? 'Loading Axis...' : 'Next'}
             </span>
           </button>
         </div>
       </div>
+
+      {/* Confirmation Popup */}
+      {showHomeConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-2xl p-6 mx-4 max-w-sm w-full shadow-2xl">
+            <h3 className="text-xl font-bold mb-4 text-center">
+              Leave Without Placing?
+            </h3>
+            <p className="text-gray-700 mb-6 text-center">
+              You have not yet placed yourself. If you proceed to the home page, you will not be able to see these axes. Confirm?
+            </p>
+            <div className="flex space-x-3">
+              <button
+                onClick={cancelGoHome}
+                className="flex-1 bg-gray-200 text-gray-800 py-3 px-4 rounded-lg font-bold hover:bg-gray-300 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmGoHome}
+                className="flex-1 bg-red-500 text-white py-3 px-4 rounded-lg font-bold hover:bg-red-600 transition"
+              >
+                Leave
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }
