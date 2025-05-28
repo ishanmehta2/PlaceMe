@@ -7,6 +7,7 @@ import { useUserData } from '../../hooks/useUserData'
 import { useGroupWorkflow } from '../../hooks/useGroupWorkflow'
 import { useDragAndDrop } from '../../hooks/useDragAndDrop'
 import { DraggableToken } from '../../components/DraggableToken'
+import { useDailyAxis } from '../../hooks/useDailyAxis'
 import Axis from '../../components/Axis'
 
 // Constants for sizing
@@ -24,6 +25,8 @@ export default function PlaceYourself() {
     initializeWorkflow, 
     saveSelfPlacement 
   } = useGroupWorkflow()
+  
+  const { dailyAxis, loading: axisLoading, error: axisError, saveAxisToDatabase } = useDailyAxis(selectedGroup?.id || null)
   
   const [isSaving, setIsSaving] = useState(false)
   
@@ -57,11 +60,19 @@ export default function PlaceYourself() {
       return
     }
 
+    if (!dailyAxis) {
+      setError?.('Daily axis is still loading. Please wait a moment and try again.')
+      return
+    }
+
     try {
       setIsSaving(true)
       
       const userPosition = positions['user-token']
-      await saveSelfPlacement(userPosition, userName, firstName)
+      console.log('🎯 Saving with session-based dailyAxis:', dailyAxis)
+      
+      // Pass the saveAxisToDatabase function to saveSelfPlacement
+      await saveSelfPlacement(userPosition, userName, firstName, dailyAxis, saveAxisToDatabase)
       
       // Navigate to place_others
       router.push('/groups/place_others')
@@ -73,7 +84,7 @@ export default function PlaceYourself() {
     }
   }
 
-  if (loading || userLoading) {
+  if (loading || userLoading || axisLoading) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-[#FFF8E1]">
         <div className="text-2xl">Loading...</div>
@@ -81,11 +92,11 @@ export default function PlaceYourself() {
     )
   }
 
-  if (error || userError) {
+  if (error || userError || axisError) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-[#FFF8E1]">
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-2xl mb-4">
-          {error || userError}
+          {error || userError || axisError}
         </div>
         <button
           onClick={() => router.push('/')}
@@ -137,13 +148,13 @@ export default function PlaceYourself() {
             <div ref={gridRef} className="relative">
               <Axis
                 size={AXIS_SIZE}
-                labels={{
+                labels={dailyAxis?.labels || {
                   top: 'Wet Sock',
                   bottom: 'Dry Tongue',
                   left: 'Tree Hugger',
                   right: 'Lumberjack'
                 }}
-                labelColors={{
+                labelColors={dailyAxis?.labels.labelColors || {
                   top: 'rgba(251, 207, 232, 0.95)', // Pink
                   bottom: 'rgba(167, 243, 208, 0.95)', // Green
                   left: 'rgba(221, 214, 254, 0.95)', // Purple
@@ -166,7 +177,7 @@ export default function PlaceYourself() {
         <div className="flex justify-center mt-8">
           <button
             onClick={handleNext}
-            disabled={isSaving || !selectedGroup}
+            disabled={isSaving || !selectedGroup || !dailyAxis}
             className="bg-[#60A5FA] py-3 px-10 rounded-full disabled:opacity-50"
           >
             <span className="text-xl font-black" style={{ 
@@ -174,7 +185,7 @@ export default function PlaceYourself() {
               color: 'white',
               fontFamily: 'Arial, sans-serif'
             }}>
-              {isSaving ? 'Saving...' : 'Next'}
+              {isSaving ? 'Saving...' : !dailyAxis ? 'Loading Axis...' : 'Next'}
             </span>
           </button>
         </div>
