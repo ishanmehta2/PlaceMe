@@ -435,7 +435,7 @@ export default function Home() {
                 className="px-6 py-3 text-lg text-left hover:bg-gray-100 rounded-t-xl"
                 onClick={() => {
                   setPlusDropdownOpen(false);
-                  router.push('/groups/suggest_axis');
+                  router.push(`/groups/suggest_axis?groupId=${activeGroup}`);
                 }}
               >
                 Send Axes

@@ -1,25 +1,106 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { supabase } from '../../../lib/auth/supabase'
+
+interface UserGroup {
+  id: string
+  name: string
+  invite_code: string
+  role: string
+  created_by: string
+}
 
 export default function SuggestAxis() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const groupIdFromUrl = searchParams.get('groupId')
+  
   const [topLabel, setTopLabel] = useState('')
   const [bottomLabel, setBottomLabel] = useState('')
   const [leftLabel, setLeftLabel] = useState('')
   const [rightLabel, setRightLabel] = useState('')
   const [error, setError] = useState('')
-  const [groupName, setGroupName] = useState('')
+  const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null)
+  const [currentGroup, setCurrentGroup] = useState<UserGroup | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Grab the group name from sessionStorage when the component mounts
-    // BUGS 
-    const name = sessionStorage.getItem('currentGroupName')
-    if (name) {
-      setGroupName(name)
+    const fetchCurrentGroup = async () => {
+      try {
+        setLoading(true)
+
+        // Get current user
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser()
+
+        if (userError || !user) {
+          console.error("Error fetching user:", userError)
+          router.push('/login')
+          return
+        }
+        setCurrentUser(user)
+
+        // If no group ID in URL, redirect to home
+        if (!groupIdFromUrl) {
+          console.log("No group ID provided, redirecting to home")
+          router.push("/home")
+          return
+        }
+
+        console.log("📍 Loading group from URL:", groupIdFromUrl)
+
+        // Get user's membership in the specified group
+        const { data: membership, error: memErr } = await supabase
+          .from("group_members")
+          .select("group_id, role")
+          .eq("user_id", user.id)
+          .eq("group_id", groupIdFromUrl)
+          .single()
+
+        if (memErr || !membership) {
+          console.error("User not member of this group:", memErr)
+          router.push("/home")
+          return
+        }
+
+        // Get the group details
+        const { data: groupData, error: groupErr } = await supabase
+          .from("groups")
+          .select("id, name, invite_code, created_by")
+          .eq("id", groupIdFromUrl)
+          .single()
+
+        if (groupErr || !groupData) {
+          console.error("Error fetching group:", groupErr)
+          router.push("/home")
+          return
+        }
+
+        const currentGroupData: UserGroup = {
+          id: groupData.id,
+          name: groupData.name,
+          invite_code: groupData.invite_code,
+          role: membership.role,
+          created_by: groupData.created_by,
+        }
+
+        console.log("✅ Loaded group:", currentGroupData.name)
+        setCurrentGroup(currentGroupData)
+
+      } catch (error) {
+        console.error("Error in fetchCurrentGroup:", error)
+        router.push("/home")
+      } finally {
+        setLoading(false)
+      }
     }
-  }, [])
+
+    fetchCurrentGroup()
+  }, [router, groupIdFromUrl])
 
   const handleSubmit = async () => {
     if (!topLabel || !bottomLabel || !leftLabel || !rightLabel) {
@@ -27,28 +108,66 @@ export default function SuggestAxis() {
       return
     }
 
-    try {
-      const groupId = sessionStorage.getItem('currentGroupId')
-      if (!groupId) throw new Error('Missing group ID.')
+    if (!currentGroup || !currentUser) {
+      setError('Group or user information not available.')
+      return
+    }
 
-      const response = await fetch('/api/suggest_axis', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          group_id: groupId,
+    try {
+      console.log('💾 Saving axis recommendation to database...')
+      
+      // Insert directly into Supabase
+      const { data, error } = await supabase
+        .from('axis_recommendations')
+        .insert({
+          group_id: currentGroup.id,
+          suggested_by: currentUser.id,
           top_label: topLabel,
           bottom_label: bottomLabel,
           left_label: leftLabel,
           right_label: rightLabel
         })
-      })
+        .select()
+        .single()
 
-      if (!response.ok) throw new Error('Failed to submit suggestions.')
+      if (error) {
+        console.error('Database error:', error)
+        throw new Error('Failed to save axis recommendation')
+      }
 
-      router.push('/groups/place_yourself')
+      console.log('✅ Axis recommendation saved:', data.id)
+      
+      // Success! Clear form and redirect
+      setTopLabel('')
+      setBottomLabel('')
+      setLeftLabel('')
+      setRightLabel('')
+      setError('')
+      
+      // Show success message or redirect
+      alert('Axis suggestion submitted successfully!')
+      router.push('/home')
+
     } catch (err: any) {
-      setError(err.message || 'Unexpected error occurred')
+      console.error('Error saving recommendation:', err)
+      setError(err.message || 'Failed to save axis recommendation')
     }
+  }
+
+  if (loading) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-[#FFF8E1]">
+        <div className="text-2xl">Loading...</div>
+      </main>
+    )
+  }
+
+  if (!currentUser || !currentGroup) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-[#FFF8E1]">
+        <div className="text-2xl">Group not found</div>
+      </main>
+    )
   }
 
   return (
@@ -64,6 +183,18 @@ export default function SuggestAxis() {
       </button>
 
       <div className="w-full max-w-sm">
+        {/* Show current group info like other pages */}
+        <div className="bg-blue-100 border border-blue-300 rounded-lg p-4 mb-6">
+          <h3 className="font-bold text-lg mb-2">Suggesting Axes For:</h3>
+          <div className="flex justify-between items-center">
+            <span className="font-medium">{currentGroup.name}</span>
+            <span className="bg-blue-200 text-blue-800 px-2 py-1 rounded text-xs">
+              CURRENT GROUP
+            </span>
+          </div>
+        </div>
+
+        {/* Header */}
         <div className="bg-[#FFE082] py-4 px-4 rounded-full w-full mx-auto mb-8">
           <h1
             className="text-4xl font-black text-center"
@@ -74,7 +205,7 @@ export default function SuggestAxis() {
               fontFamily: 'Arial, sans-serif'
             }}
           >
-            Send Axis{groupName ? ` for ${groupName}` : ''}
+            SEND AXES
           </h1>
         </div>
 
@@ -85,40 +216,64 @@ export default function SuggestAxis() {
         )}
 
         <div className="space-y-4">
-          <input
-            type="text"
-            placeholder="Top of Y-axis"
-            value={topLabel}
-            onChange={(e) => setTopLabel(e.target.value)}
-            className="w-full p-3 border rounded-xl text-lg"
-          />
-          <input
-            type="text"
-            placeholder="Bottom of Y-axis"
-            value={bottomLabel}
-            onChange={(e) => setBottomLabel(e.target.value)}
-            className="w-full p-3 border rounded-xl text-lg"
-          />
-          <input
-            type="text"
-            placeholder="Right of X-axis"
-            value={rightLabel}
-            onChange={(e) => setRightLabel(e.target.value)}
-            className="w-full p-3 border rounded-xl text-lg"
-          />
-          <input
-            type="text"
-            placeholder="Left of X-axis"
-            value={leftLabel}
-            onChange={(e) => setLeftLabel(e.target.value)}
-            className="w-full p-3 border rounded-xl text-lg"
-          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Top of Y-axis
+            </label>
+            <input
+              type="text"
+              placeholder="e.g., Morning Person"
+              value={topLabel}
+              onChange={(e) => setTopLabel(e.target.value)}
+              className="w-full p-4 border-2 border-gray-300 rounded-xl text-lg focus:border-blue-500 focus:outline-none transition"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Bottom of Y-axis
+            </label>
+            <input
+              type="text"
+              placeholder="e.g., Night Owl"
+              value={bottomLabel}
+              onChange={(e) => setBottomLabel(e.target.value)}
+              className="w-full p-4 border-2 border-gray-300 rounded-xl text-lg focus:border-blue-500 focus:outline-none transition"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Left of X-axis
+            </label>
+            <input
+              type="text"
+              placeholder="e.g., Coffee Lover"
+              value={leftLabel}
+              onChange={(e) => setLeftLabel(e.target.value)}
+              className="w-full p-4 border-2 border-gray-300 rounded-xl text-lg focus:border-blue-500 focus:outline-none transition"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Right of X-axis
+            </label>
+            <input
+              type="text"
+              placeholder="e.g., Tea Enthusiast"
+              value={rightLabel}
+              onChange={(e) => setRightLabel(e.target.value)}
+              className="w-full p-4 border-2 border-gray-300 rounded-xl text-lg focus:border-blue-500 focus:outline-none transition"
+            />
+          </div>
         </div>
 
         <div className="flex justify-center mt-8">
           <button
             onClick={handleSubmit}
-            className="bg-[#60A5FA] py-3 px-10 rounded-full"
+            disabled={!topLabel || !bottomLabel || !leftLabel || !rightLabel}
+            className="bg-[#60A5FA] py-3 px-10 rounded-full disabled:opacity-50 hover:bg-[#3B82F6] transition"
           >
             <span
               className="text-xl font-black"
@@ -129,7 +284,7 @@ export default function SuggestAxis() {
                 fontFamily: 'Arial, sans-serif'
               }}
             >
-              Submit
+              Submit Axes
             </span>
           </button>
         </div>
