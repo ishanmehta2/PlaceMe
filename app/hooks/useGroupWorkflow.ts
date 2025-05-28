@@ -307,11 +307,15 @@ export const useGroupWorkflow = () => {
     if (!selectedGroup || !currentUserId) {
       throw new Error('Missing user or group information')
     }
+
+    if (!position || typeof position.x !== 'number' || typeof position.y !== 'number') {
+      throw new Error('Invalid position data')
+    }
     
     try {
-      // Convert position from pixels to percent if needed
-      const percentX = typeof position.x === 'number' && position.x > 100 ? (position.x / 300) * 100 : position.x
-      const percentY = typeof position.y === 'number' && position.y > 100 ? (position.y / 300) * 100 : position.y
+      // Convert position from pixels to percent
+      const percentX = (position.x / 300) * 100
+      const percentY = (position.y / 300) * 100
       
       const { error: saveError } = await supabase
         .from('place_yourself')
@@ -342,10 +346,30 @@ export const useGroupWorkflow = () => {
     if (!selectedGroup || !currentUserId) {
       throw new Error('Missing user or group information')
     }
+
+    if (!tokens || tokens.length === 0) {
+      throw new Error('No tokens to save')
+    }
+
+    // Validate all tokens have valid positions
+    const invalidTokens = tokens.filter(token => 
+      !token.position || 
+      typeof token.position.x !== 'number' || 
+      typeof token.position.y !== 'number'
+    )
+
+    if (invalidTokens.length > 0) {
+      throw new Error('Some tokens have invalid positions')
+    }
     
     try {
-      for (const token of tokens) {
-        const { error: saveError } = await supabase
+      // Start a transaction by collecting all the insert operations
+      const insertOperations = tokens.map(token => {
+        // Convert position from pixels to percent
+        const percentX = (token.position.x / 300) * 100
+        const percentY = (token.position.y / 300) * 100
+
+        return supabase
           .from('place_others')
           .insert({
             placer_user_id: currentUserId,
@@ -354,18 +378,23 @@ export const useGroupWorkflow = () => {
             group_code: selectedGroup.invite_code,
             username: token.firstName,
             first_name: token.firstName,
-            position_x: token.position.x,
-            position_y: token.position.y,
+            position_x: percentX,
+            position_y: percentY,
             top_label: 'Wet Sock',
             bottom_label: 'Dry Tongue',
             left_label: 'Tree Hugger',
             right_label: 'Lumberjack',
             created_at: new Date().toISOString()
           })
-        
-        if (saveError) {
-          console.error(`Error saving position for ${token.firstName}:`, saveError)
-        }
+      })
+
+      // Execute all operations
+      const results = await Promise.all(insertOperations)
+      
+      // Check for any errors
+      const errors = results.filter(result => result.error)
+      if (errors.length > 0) {
+        throw new Error(`Failed to save ${errors.length} placements`)
       }
     } catch (err: any) {
       console.error('Error saving others placements:', err)
