@@ -21,7 +21,14 @@ interface AxisProps {
   height?: number
   tokenSize?: number
   children?: React.ReactNode
-  tokens?: TokenProps[]
+  tokens?: {
+    id: string
+    name: string
+    x: number  // pixel coordinates (0 to width)
+    y: number  // pixel coordinates (0 to height)
+    color: string
+    imageUrl: string
+  }[]
 }
 
 export default function Axis({
@@ -112,11 +119,27 @@ export default function Axis({
           
           {/* Tokens */}
           {tokens.map((token) => (
-            <Token
+            <div
               key={token.id}
-              {...token}
-              size={tokenSize}
-            />
+              style={{
+                position: 'absolute',
+                left: token.x,
+                top: token.y,
+                transform: 'translate(-50%, -50%)',
+                marginLeft: `-${tokenSize/2}px`,
+                marginTop: `-${tokenSize/2}px`,
+              }}
+            >
+              <Token
+                id={token.id}
+                name={token.name}
+                position={{ x: 0, y: 0 }}
+                color={token.color}
+                size={tokenSize}
+                imageUrl={token.imageUrl}
+                disablePositioning
+              />
+            </div>
           ))}
           
           {/* Children (draggables, etc.) */}

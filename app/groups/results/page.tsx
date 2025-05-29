@@ -25,7 +25,7 @@ export default function Results() {
   } = useDailyAxis(selectedGroup?.id || null);
   const [view, setView] = useState<"self" | "guessed">("self");
   const [selectedToken, setSelectedToken] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
   const [newComment, setNewComment] = useState("");
   const commentsEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -50,6 +50,7 @@ export default function Results() {
       setNewComment("");
     } catch (err: any) {
       console.error("Failed to add comment:", err);
+      setLocalError(err.message || "Failed to add comment");
     }
   };
 
@@ -77,11 +78,11 @@ export default function Results() {
     );
   }
 
-  if (error || axisError) {
+  if (error || axisError || localError) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-[#FFF8E1]">
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-2xl mb-4">
-          {error || axisError}
+          {error || axisError || localError}
         </div>
         <button
           onClick={() => router.push("/")}
@@ -96,6 +97,19 @@ export default function Results() {
   return (
     <main className="flex min-h-screen flex-col items-center pt-8 p-4 bg-[#FFF8E1]">
       <div className="w-full max-w-sm relative">
+        {process.env.NODE_ENV === 'development' && (
+          <div className="w-full mb-4 p-2 bg-gray-100 rounded text-xs text-left break-all">
+            <strong>DEBUG:</strong>
+            <pre>{JSON.stringify({
+              results,
+              selectedToken,
+              selectedTokenInfo,
+              view,
+              selectedGroup,
+              dailyAxis
+            }, null, 2)}</pre>
+          </div>
+        )}
         {/* Back Button */}
         <button
           className="absolute left-0 top-0 flex items-center p-2"
@@ -175,7 +189,8 @@ export default function Results() {
         ) : (
           <div className="relative">
             <Axis
-              size={AXIS_SIZE}
+              width={AXIS_WIDTH}
+              height={AXIS_HEIGHT}
               labels={
                 dailyAxis?.labels || {
                   top: "Wet Sock",

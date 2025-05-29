@@ -95,16 +95,7 @@ export function TokenGrid({
     if (onPositionChange && event.active) {
       const tokenId = event.active.id
       const position = positions[tokenId]
-      
-      // Convert pixel positions to percentages (-1 to 1)
-      const adjustedPosition = {
-        x: (position.x / axisWidth) * 2 - 1, // Convert to -1 to 1 range
-        y: position.y > axisHeight 
-          ? 1 // If in neutral zone, set to bottom of axis (1)
-          : (position.y / axisHeight) * 2 - 1 // Convert to -1 to 1 range
-      }
-      
-      onPositionChange(tokenId, adjustedPosition)
+      onPositionChange(tokenId, position)
     }
   }
 
@@ -130,20 +121,24 @@ export function TokenGrid({
           labels={axisLabels}
           labelColors={axisColors}
         />
-        {tokens.map(token => (
-          <DraggableToken
-            key={token.id}
-            id={token.id}
-            position={positions[token.id]}
-            isDragging={activeId === token.id}
-            userAvatar={token.userAvatar}
-            firstName={token.firstName}
-            gridWidth={axisWidth}
-            gridHeight={axisHeight}
-            neutralZoneHeight={neutralZoneHeight}
-            isPlaced={placedTokens.has(token.id)}
-          />
-        ))}
+        {tokens.map(token => {
+          const pos = positions[token.id];
+          if (!pos) return null;
+          return (
+            <DraggableToken
+              key={token.id}
+              id={token.id}
+              position={pos}
+              isDragging={activeId === token.id}
+              userAvatar={token.userAvatar}
+              firstName={token.firstName}
+              gridWidth={axisWidth}
+              gridHeight={axisHeight}
+              neutralZoneHeight={neutralZoneHeight}
+              isPlaced={placedTokens.has(token.id)}
+            />
+          );
+        })}
         <div 
           className="w-full bg-[#FFE082]"
           style={{ 

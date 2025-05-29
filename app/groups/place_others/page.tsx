@@ -93,6 +93,16 @@ export default function PlaceOthers() {
   return (
     <main className="flex min-h-screen flex-col items-center pt-8 p-4 bg-[#FFF8E1]">
       <div className="w-full max-w-[430px] flex flex-col items-center">
+        {process.env.NODE_ENV === 'development' && (
+          <div className="w-full mb-4 p-2 bg-gray-100 rounded text-xs text-left break-all">
+            <strong>DEBUG:</strong>
+            <pre>{JSON.stringify({
+              tokens,
+              selectedGroup,
+              dailyAxis
+            }, null, 2)}</pre>
+          </div>
+        )}
         {/* Header with Place Others text */}
         <div className="bg-[#FFE082] py-4 px-4 rounded-full w-full mx-auto mb-8">
           <h1
@@ -133,13 +143,13 @@ export default function PlaceOthers() {
                 tokens={tokens}
                 onPositionChange={handlePositionChange}
                 onPlacementChange={setAllTokensPlaced}
-                axisLabels={{
+                axisLabels={dailyAxis?.labels || {
                   top: "Wet Sock",
                   bottom: "Dry Tongue",
                   left: "Tree Hugger",
                   right: "Lumberjack",
                 }}
-                axisColors={{
+                axisColors={dailyAxis?.labels.labelColors || {
                   top: "rgba(251, 207, 232, 0.95)", // Pink
                   bottom: "rgba(167, 243, 208, 0.95)", // Green
                   left: "rgba(221, 214, 254, 0.95)", // Purple
@@ -171,70 +181,6 @@ export default function PlaceOthers() {
                 </span>
               </button>
             </div>
-
-            {tokens.length === 0 ? (
-              <div className="text-center">
-                <p className="text-lg mb-6">
-                  You're the only member in this group right now.
-                </p>
-                <button
-                  onClick={() => router.push("/groups/results")}
-                  className="bg-blue-500 text-white px-6 py-2 rounded-lg"
-                >
-                  Skip to Results
-                </button>
-              </div>
-            ) : (
-              <>
-                <div className="space-y-6">
-                  <TokenGrid
-                    tokens={tokens}
-                    onPositionChange={handlePositionChange}
-                    axisLabels={
-                      dailyAxis?.labels || {
-                        top: "Wet Sock",
-                        bottom: "Dry Tongue",
-                        left: "Tree Hugger",
-                        right: "Lumberjack",
-                      }
-                    }
-                    axisColors={
-                      dailyAxis?.labels.labelColors || {
-                        top: "rgba(251, 207, 232, 0.95)", // Pink
-                        bottom: "rgba(167, 243, 208, 0.95)", // Green
-                        left: "rgba(221, 214, 254, 0.95)", // Purple
-                        right: "rgba(253, 230, 138, 0.95)", // Yellow
-                      }
-                    }
-                  />
-                </div>
-
-                {/* Next Button */}
-                <div className="flex justify-center mt-8">
-                  <button
-                    onClick={handleNext}
-                    disabled={isSaving || !dailyAxis}
-                    className="bg-[#60A5FA] py-3 px-10 rounded-full disabled:opacity-50"
-                  >
-                    <span
-                      className="text-xl font-black"
-                      style={{
-                        textShadow:
-                          "2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000",
-                        color: "white",
-                        fontFamily: "Arial, sans-serif",
-                      }}
-                    >
-                      {isSaving
-                        ? "Saving..."
-                        : !dailyAxis
-                        ? "Loading Axis..."
-                        : "Next"}
-                    </span>
-                  </button>
-                </div>
-              </>
-            )}
           </>
         )}
       </div>

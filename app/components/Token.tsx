@@ -36,12 +36,11 @@ export default function Token({
   disablePositioning = false,
 }: TokenProps) {
   const { border, fontSize, imageSize } = positionUtils.calculateTokenSize(size)
-  const positionStyle = disablePositioning ? {} : positionUtils.calculateTokenPosition(position.x, position.y, size)
 
   return (
     <div
       className={`absolute flex flex-col items-center ${className}`}
-      style={{ ...tokenStyles.base, ...positionStyle, ...style }}
+      style={{ ...tokenStyles.base, ...style }}
     >
       <div
         className="flex items-center justify-center"

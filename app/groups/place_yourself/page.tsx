@@ -109,6 +109,20 @@ export default function PlaceYourself() {
   return (
     <main className="flex min-h-screen flex-col items-center pt-8 p-4 bg-[#FFF8E1]">
       <div className="w-full max-w-[430px] flex flex-col items-center">
+        {process.env.NODE_ENV === 'development' && (
+          <div className="w-full mb-4 p-2 bg-gray-100 rounded text-xs text-left break-all">
+            <strong>DEBUG:</strong>
+            <pre>{JSON.stringify({
+              userPosition,
+              userName,
+              firstName,
+              userAvatar,
+              selectedGroup,
+              dailyAxis
+            }, null, 2)}</pre>
+          </div>
+        )}
+
         {selectedGroup && (
           <div className="bg-blue-100 border border-blue-300 rounded-lg p-4 mb-6">
             <h3 className="font-bold text-lg mb-2">Selected Group:</h3>

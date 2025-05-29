@@ -370,15 +370,9 @@ export const useGroupWorkflow = () => {
       // First, save the axes to database and get the real database ID
       const realAxisId = await saveAxisToDatabase(dailyAxis);
 
-      // Convert position from pixels to percent if needed
-      const percentX =
-        typeof position.x === "number" && position.x > 100
-          ? (position.x / 300) * 100
-          : position.x;
-      const percentY =
-        typeof position.y === "number" && position.y > 100
-          ? (position.y / 300) * 100
-          : position.y;
+      // Always save as 0-300 (pixels)
+      const pixelX = position.x;
+      const pixelY = position.y;
 
       // Get today's date for consistency
       const today = new Date().toISOString().split("T")[0];
@@ -391,8 +385,8 @@ export const useGroupWorkflow = () => {
           group_code: selectedGroup.invite_code,
           username: userName,
           first_name: firstName,
-          position_x: percentX,
-          position_y: percentY,
+          position_x: pixelX,
+          position_y: pixelY,
           top_label: dailyAxis.labels.top,
           bottom_label: dailyAxis.labels.bottom,
           left_label: dailyAxis.labels.left,
@@ -448,6 +442,10 @@ export const useGroupWorkflow = () => {
       const today = new Date().toISOString().split("T")[0];
 
       for (const token of tokens) {
+        // Always save as 0-300 (pixels)
+        const pixelX = token.position.x;
+        const pixelY = token.position.y;
+
         const { error: saveError } = await supabase
           .from("place_others")
           .insert({
@@ -457,8 +455,8 @@ export const useGroupWorkflow = () => {
             group_code: selectedGroup.invite_code,
             username: token.firstName,
             first_name: token.firstName,
-            position_x: token.position.x,
-            position_y: token.position.y,
+            position_x: pixelX,
+            position_y: pixelY,
             top_label: dailyAxis.labels.top,
             bottom_label: dailyAxis.labels.bottom,
             left_label: dailyAxis.labels.left,
