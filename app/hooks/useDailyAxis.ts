@@ -1,4 +1,4 @@
-// hooks/useDailyAxis.js
+// hooks/useDailyAxis.ts
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/auth/supabase'
 import {
@@ -16,6 +16,7 @@ interface DailyAxis {
   top_label: string
   bottom_label: string
   date_generated: string
+  is_active: boolean
   labels: {
     top: string
     bottom: string
@@ -31,12 +32,17 @@ interface DailyAxis {
 }
 
 /**
- * useDailyAxis
- * -------------
- * • Generates fresh, random axis pairs every time place_yourself is loaded
- * • Stores axis data in session storage for consistency across workflow pages
- * • Only saves to database when user actually places themselves (via saveSelfPlacement)
- * • Provides fresh experience on every new workflow start
+ * useDailyAxis - Updated for Production Workflow
+ * =============================================
+ * 
+ * NEW BEHAVIOR (Production-ready):
+ * • Checks for existing active axes for today for the given group
+ * • If found, loads and uses them (consistent experience for all group members)
+ * • If not found, generates new axes and saves them immediately to database
+ * • All users in the same group will see the same axes for the same day
+ * • Uses is_active flag to manage which axes are current
+ * 
+ * This ensures the "once per day per group" requirement is met
  */
 export const useDailyAxis = (groupId: string | null) => {
   const [dailyAxis, setDailyAxis] = useState<DailyAxis | null>(null)
@@ -50,49 +56,62 @@ export const useDailyAxis = (groupId: string | null) => {
       return
     }
 
-    // Check if we're in a workflow session first, otherwise generate fresh
-    loadOrGenerateAxis(groupId)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    loadTodaysAxis(groupId)
   }, [groupId])
 
   /**
-   * Loads existing session axis or generates fresh ones
+   * Main function: Load today's axes or generate new ones
    */
-  const loadOrGenerateAxis = async (grpId: string) => {
+  const loadTodaysAxis = async (grpId: string) => {
     try {
       setLoading(true)
       setError(null)
 
-      // Check if we have axes for this group in session storage
-      const sessionKey = `currentAxis_${grpId}`
-      const sessionAxisData = sessionStorage.getItem(sessionKey)
-      
-      if (sessionAxisData) {
-        console.log('📋 Loading axes from session storage for group:', grpId)
-        const parsedAxis = JSON.parse(sessionAxisData)
-        setDailyAxis(parsedAxis)
+      const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD format
+
+      console.log('🎯 Loading daily axes for group:', grpId, 'date:', today)
+
+      // STEP 1: Check if axes already exist for this group today
+      const { data: existingAxis, error: existingError } = await supabase
+        .from('axes')
+        .select('*')
+        .eq('group_id', grpId)
+        .eq('date_generated', today)
+        .eq('is_active', true)
+        .maybeSingle() // Use maybeSingle to avoid error when no rows found
+
+      if (existingError) {
+        console.error('❌ Error checking existing axes:', existingError)
+        throw existingError
+      }
+
+      // STEP 2: If axes exist for today, use them
+      if (existingAxis) {
+        console.log('📋 Found existing axes for today:', existingAxis.id)
+        const processedAxis = processAxisFromDatabase(existingAxis)
+        setDailyAxis(processedAxis)
         setLoading(false)
         return
       }
 
-      // Generate fresh axes for new workflow session
-      console.log('🎯 Generating fresh axes for new workflow session, group:', grpId)
-      await generateFreshSessionAxis(grpId)
+      // STEP 3: No axes for today - generate new ones
+      console.log('✨ No axes found for today, generating new ones...')
+      await generateAndSaveTodaysAxis(grpId, today)
 
     } catch (err: any) {
-      console.error('❌ Error loading/generating axes:', err)
-      setError(err.message || 'Failed to load axes')
+      console.error('❌ Error in loadTodaysAxis:', err)
+      setError(err.message || 'Failed to load daily axes')
       setLoading(false)
     }
   }
 
   /**
-   * Generates fresh axis pairs and stores them in session storage
+   * Generate new axes for today and save them immediately to database
    */
-  const generateFreshSessionAxis = async (grpId: string) => {
+  const generateAndSaveTodaysAxis = async (grpId: string, today: string) => {
     try {
-      // 1️⃣ Fetch recently used pairs to avoid immediate repeats
-      const { data: usedAxes, error: usedErr } = await supabase
+      // STEP 1: Get recently used axes to avoid immediate repeats
+      const { data: recentAxes, error: recentError } = await supabase
         .from('axes')
         .select('vertical_axis_pair_id, horizontal_axis_pair_id')
         .eq('group_id', grpId)
@@ -100,53 +119,74 @@ export const useDailyAxis = (groupId: string | null) => {
         .order('created_at', { ascending: false })
         .limit(10)
 
-      if (usedErr) {
-        console.error('Error fetching previously used axes:', usedErr)
+      if (recentError) {
+        console.warn('⚠️ Could not fetch recent axes (continuing anyway):', recentError)
       }
 
-      const usedVerticalIds =
-        usedAxes?.map(a => a.vertical_axis_pair_id).filter(Boolean) || []
-      const usedHorizontalIds =
-        usedAxes?.map(a => a.horizontal_axis_pair_id).filter(Boolean) || []
-      const allUsedIds = [...usedVerticalIds, ...usedHorizontalIds]
-
-      console.log('🚫 Recently used axis pairs:', allUsedIds)
-
-      // 2️⃣ Generate fresh pairs
-      const { vertical: verticalPair, horizontal: horizontalPair } =
-        getTwoDifferentAxisPairs(allUsedIds)
-
-      console.log('✨ Generated fresh vertical pair:', verticalPair.id, '-', verticalPair.left, 'vs', verticalPair.right)
-      console.log('✨ Generated fresh horizontal pair:', horizontalPair.id, '-', horizontalPair.left, 'vs', horizontalPair.right)
-
-      // 3️⃣ Combine labels
-      const combinedLabels = combineLabels(verticalPair, horizontalPair)
-
-      // 4️⃣ Create session axis object (no database save yet)
-      const sessionAxis: DailyAxis = {
-        id: `session_${Date.now()}`, // Temporary ID for session
-        group_id: grpId,
-        vertical_axis_pair_id: verticalPair.id,
-        horizontal_axis_pair_id: horizontalPair.id,
-        left_label: horizontalPair.left,
-        right_label: horizontalPair.right,
-        top_label: verticalPair.left,
-        bottom_label: verticalPair.right,
-        date_generated: new Date().toISOString(),
-        labels: combinedLabels
+      // Collect recently used axis pair IDs to avoid repeats
+      const recentlyUsedIds: string[] = []
+      if (recentAxes) {
+        recentAxes.forEach(axis => {
+          if (axis.vertical_axis_pair_id) recentlyUsedIds.push(axis.vertical_axis_pair_id)
+          if (axis.horizontal_axis_pair_id) recentlyUsedIds.push(axis.horizontal_axis_pair_id)
+        })
       }
 
-      // 5️⃣ Store in session storage for workflow consistency
-      const sessionKey = `currentAxis_${grpId}`
-      sessionStorage.setItem(sessionKey, JSON.stringify(sessionAxis))
-      console.log('💾 Stored axes in session storage for workflow consistency')
+      console.log('🚫 Avoiding recently used axis pairs:', recentlyUsedIds)
 
-      setDailyAxis(sessionAxis)
+      // STEP 2: Generate fresh axis pairs
+      const { vertical: verticalPair, horizontal: horizontalPair } = 
+        getTwoDifferentAxisPairs(recentlyUsedIds)
+
+      console.log('✨ Generated vertical pair:', verticalPair.id, '-', verticalPair.left, 'vs', verticalPair.right)
+      console.log('✨ Generated horizontal pair:', horizontalPair.id, '-', horizontalPair.left, 'vs', horizontalPair.right)
+
+      // STEP 3: Combine labels and colors
+      const combinedLabels = combineAxisLabels(verticalPair, horizontalPair)
+
+      // STEP 4: Deactivate any old axes for this group (cleanup)
+      const { error: deactivateError } = await supabase
+        .from('axes')
+        .update({ is_active: false })
+        .eq('group_id', grpId)
+        .eq('is_active', true)
+
+      if (deactivateError) {
+        console.warn('⚠️ Could not deactivate old axes (continuing anyway):', deactivateError)
+      }
+
+      // STEP 5: Insert new axes into database
+      const { data: newAxis, error: insertError } = await supabase
+        .from('axes')
+        .insert({
+          group_id: grpId,
+          vertical_axis_pair_id: verticalPair.id,
+          horizontal_axis_pair_id: horizontalPair.id,
+          left_label: horizontalPair.left,
+          right_label: horizontalPair.right,
+          top_label: verticalPair.left,
+          bottom_label: verticalPair.right,
+          date_generated: today,
+          is_active: true
+        })
+        .select('*')
+        .single()
+
+      if (insertError) {
+        console.error('❌ Error saving new axes to database:', insertError)
+        throw insertError
+      }
+
+      console.log('✅ Successfully created and saved new daily axes:', newAxis.id)
+
+      // STEP 6: Process and set the new axes
+      const processedAxis = processAxisFromDatabase(newAxis)
+      setDailyAxis(processedAxis)
 
     } catch (err: any) {
-      console.error('❌ Error generating session axes:', err)
+      console.error('❌ Error generating and saving axes:', err)
       
-      // Fallback to in-memory axes
+      // FALLBACK: Create in-memory axes if database fails
       const { vertical, horizontal } = getTwoDifferentAxisPairs()
       const fallbackAxis: DailyAxis = {
         id: `fallback_${Date.now()}`,
@@ -157,10 +197,12 @@ export const useDailyAxis = (groupId: string | null) => {
         right_label: horizontal.right,
         top_label: vertical.left,
         bottom_label: vertical.right,
-        date_generated: new Date().toISOString(),
-        labels: combineLabels(vertical, horizontal)
+        date_generated: today,
+        is_active: true,
+        labels: combineAxisLabels(vertical, horizontal)
       }
       
+      console.log('🔄 Using fallback in-memory axes due to database error')
       setDailyAxis(fallbackAxis)
     } finally {
       setLoading(false)
@@ -168,77 +210,44 @@ export const useDailyAxis = (groupId: string | null) => {
   }
 
   /**
-   * Saves the current session axes to the database
-   * Called by saveSelfPlacement when user actually places themselves
+   * Convert database axis record to our DailyAxis interface
    */
-  const saveAxisToDatabase = async (axis: DailyAxis) => {
-    try {
-      console.log('💾 Saving axes to database:', axis.id)
-      
-      const today = new Date().toISOString().split('T')[0]
-      
-      // Check if axes already exist for this group today
-      const { data: existingAxis, error: checkError } = await supabase
-        .from('axes')
-        .select('id')
-        .eq('group_id', axis.group_id)
-        .eq('date_generated', today)
-        .eq('is_active', true)
-        .single()
-
-      if (checkError && checkError.code !== 'PGRST116') {
-        console.error('Error checking existing axes:', checkError)
-        throw checkError
+  const processAxisFromDatabase = (axisRecord: any): DailyAxis => {
+    // We need to reconstruct the axis pairs from the stored IDs to get colors
+    // For now, we'll use the stored labels and default colors
+    // You could enhance this by storing colors in the database too
+    
+    return {
+      id: axisRecord.id,
+      group_id: axisRecord.group_id,
+      vertical_axis_pair_id: axisRecord.vertical_axis_pair_id,
+      horizontal_axis_pair_id: axisRecord.horizontal_axis_pair_id,
+      left_label: axisRecord.left_label,
+      right_label: axisRecord.right_label,
+      top_label: axisRecord.top_label,
+      bottom_label: axisRecord.bottom_label,
+      date_generated: axisRecord.date_generated,
+      is_active: axisRecord.is_active,
+      labels: {
+        top: axisRecord.top_label,
+        bottom: axisRecord.bottom_label,
+        left: axisRecord.left_label,
+        right: axisRecord.right_label,
+        labelColors: {
+          // Default colors - you could store these in database or reconstruct from axis pairs
+          top: 'rgba(251, 207, 232, 0.95)', // Pink
+          bottom: 'rgba(167, 243, 208, 0.95)', // Green
+          left: 'rgba(221, 214, 254, 0.95)', // Purple
+          right: 'rgba(253, 230, 138, 0.95)' // Yellow
+        }
       }
-
-      if (existingAxis) {
-        console.log('📋 Axes already exist for today, updating session axis with DB id')
-        // Update session axis with database ID
-        const updatedAxis = { ...axis, id: existingAxis.id }
-        const sessionKey = `currentAxis_${axis.group_id}`
-        sessionStorage.setItem(sessionKey, JSON.stringify(updatedAxis))
-        return existingAxis.id
-      }
-
-      // Insert new axes
-      const { data: inserted, error: insertErr } = await supabase
-        .from('axes')
-        .insert({
-          group_id: axis.group_id,
-          vertical_axis_pair_id: axis.vertical_axis_pair_id,
-          horizontal_axis_pair_id: axis.horizontal_axis_pair_id,
-          left_label: axis.left_label,
-          right_label: axis.right_label,
-          top_label: axis.top_label,
-          bottom_label: axis.bottom_label,
-          date_generated: today,
-          is_active: true
-        })
-        .select('id')
-        .single()
-
-      if (insertErr) {
-        console.error('Error inserting axes:', insertErr)
-        throw insertErr
-      }
-
-      console.log('✅ Successfully saved axes to database with ID:', inserted.id)
-      
-      // Update session with database ID
-      const updatedAxis = { ...axis, id: inserted.id }
-      const sessionKey = `currentAxis_${axis.group_id}`
-      sessionStorage.setItem(sessionKey, JSON.stringify(updatedAxis))
-      
-      return inserted.id
-
-    } catch (err: any) {
-      console.error('❌ Error saving axes to database:', err)
-      throw err
     }
   }
 
-  /** Helper to merge label info */
-  const combineLabels = (verticalPair: any, horizontalPair: any) => {
+  /**
+   * Helper to combine labels from vertical and horizontal axis pairs
+   */
+  const combineAxisLabels = (verticalPair: any, horizontalPair: any) => {
     const v = generateAxisLabels(verticalPair)
     const h = generateAxisLabels(horizontalPair)
 
@@ -248,36 +257,54 @@ export const useDailyAxis = (groupId: string | null) => {
       left: h.left || horizontalPair.left,
       right: h.right || horizontalPair.right,
       labelColors: {
-        top: v.labelColors?.left || v.labelColors?.top || '#000',
-        bottom: v.labelColors?.right || v.labelColors?.bottom || '#000',
-        left: h.labelColors?.left || '#000',
-        right: h.labelColors?.right || '#000'
+        top: v.labelColors?.left || v.labelColors?.top || 'rgba(251, 207, 232, 0.95)',
+        bottom: v.labelColors?.right || v.labelColors?.bottom || 'rgba(167, 243, 208, 0.95)',
+        left: h.labelColors?.left || 'rgba(221, 214, 254, 0.95)',
+        right: h.labelColors?.right || 'rgba(253, 230, 138, 0.95)'
       }
     }
   }
 
-  /** Force-refresh helper - clears session and generates new axes */
-  const refreshAxis = () => {
-    if (groupId) {
-      console.log('🔄 Refreshing axes - clearing session storage')
-      const sessionKey = `currentAxis_${groupId}`
-      sessionStorage.removeItem(sessionKey)
-      generateFreshSessionAxis(groupId)
+  /**
+   * Force refresh - deactivate current axes and generate new ones
+   * Useful for testing or if you want to generate new axes manually
+   */
+  const forceRefreshAxis = async () => {
+    if (!groupId) return
+    
+    try {
+      setLoading(true)
+      console.log('🔄 Force refreshing axes for group:', groupId)
+      
+      // Deactivate current axes
+      const { error: deactivateError } = await supabase
+        .from('axes')
+        .update({ is_active: false })
+        .eq('group_id', groupId)
+        .eq('is_active', true)
+
+      if (deactivateError) {
+        console.error('Error deactivating axes:', deactivateError)
+      }
+
+      // Generate new axes
+      const today = new Date().toISOString().split('T')[0]
+      await generateAndSaveTodaysAxis(groupId, today)
+      
+    } catch (err: any) {
+      console.error('Error force refreshing axes:', err)
+      setError(err.message || 'Failed to refresh axes')
+      setLoading(false)
     }
   }
 
-  /** Clear session data for this group */
-  const clearSessionAxis = (grpId: string) => {
-    const sessionKey = `currentAxis_${grpId}`
-    sessionStorage.removeItem(sessionKey)
-  }
+  // REMOVED: saveAxisToDatabase function - no longer needed since we save immediately
+  // REMOVED: session storage logic - no longer needed since we use database as source of truth
 
   return {
     dailyAxis,
     loading,
     error,
-    refreshAxis,
-    saveAxisToDatabase,
-    clearSessionAxis
+    forceRefreshAxis // Replaces refreshAxis for testing purposes
   }
 }

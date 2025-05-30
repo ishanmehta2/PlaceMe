@@ -4,7 +4,6 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useResults } from '../../hooks/useResults'
 import { useComments } from '../../hooks/useComments'
-import { useDailyAxis } from '../../hooks/useDailyAxis'
 import Axis from '../../components/Axis'
 import Token from '../../components/Token'
 import { ArrowLeftIcon, ChevronDownIcon } from '@heroicons/react/24/solid'
@@ -16,8 +15,8 @@ const GUESS_TOKEN_SIZE = 25
 
 export default function Results() {
   const router = useRouter()
-  const { loading, error, selectedGroup, results } = useResults()
-  const { dailyAxis, loading: axisLoading, error: axisError } = useDailyAxis(selectedGroup?.id || null)
+  // Updated: useResults now returns dailyAxis directly
+  const { loading, error, selectedGroup, dailyAxis, results } = useResults()
   const [view, setView] = useState<'self' | 'guessed'>('self')
   const [selectedToken, setSelectedToken] = useState<string | null>(null)
   const [newComment, setNewComment] = useState('')
@@ -63,25 +62,53 @@ export default function Results() {
 
   const selectedTokenInfo = getSelectedTokenInfo()
 
-  if (loading || axisLoading) {
+  // Loading state - wait for all required data
+  if (loading) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-[#FFF8E1]">
-        <div className="text-2xl">Loading...</div>
+        <div className="text-2xl">Loading results...</div>
+        <div className="text-sm text-gray-600 mt-2">Loading group data and placements...</div>
       </main>
     )
   }
 
-  if (error || axisError) {
+  // Error state - show any errors that occurred
+  if (error) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-[#FFF8E1]">
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-2xl mb-4">
-          {error || axisError}
+          {error}
+        </div>
+        <div className="flex space-x-4">
+          <button
+            onClick={() => router.push('/groups/place_yourself')}
+            className="bg-blue-500 text-white px-6 py-2 rounded-lg"
+          >
+            Start New Workflow
+          </button>
+          <button
+            onClick={() => router.push('/home')}
+            className="bg-gray-500 text-white px-6 py-2 rounded-lg"
+          >
+            Go Home
+          </button>
+        </div>
+      </main>
+    )
+  }
+
+  // Missing group or axis state
+  if (!selectedGroup || !dailyAxis) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-[#FFF8E1]">
+        <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded-2xl mb-4">
+          {!selectedGroup ? 'No workflow group found.' : 'No daily axis data found.'} Please start a new workflow.
         </div>
         <button
           onClick={() => router.push('/groups/place_yourself')}
           className="bg-blue-500 text-white px-6 py-2 rounded-lg"
         >
-          Start Over
+          Start New Workflow
         </button>
       </main>
     )
@@ -99,13 +126,21 @@ export default function Results() {
           <ArrowLeftIcon className="h-6 w-6 text-black" />
         </button>
 
-        {/* Group Info */}
-        {selectedGroup && (
-          <div className="text-center mb-4 mt-8">
-            <h2 className="text-xl font-bold text-gray-700">{selectedGroup.name}</h2>
-            <p className="text-sm text-gray-600">Results</p>
+        {/* Group Info - ENHANCED */}
+        <div className="bg-green-100 border border-green-300 rounded-lg p-4 mb-4 mt-8">
+          <h3 className="font-bold text-lg mb-2">Results for:</h3>
+          <div className="flex justify-between items-center">
+            <span className="font-medium">{selectedGroup.name}</span>
+            <span className="bg-green-200 text-green-800 px-2 py-1 rounded text-xs">
+              COMPLETE
+            </span>
           </div>
-        )}
+          <div className="mt-2 text-xs text-gray-500">
+            <div>Axis ID: {dailyAxis.id}</div>
+            <div>Generated: {dailyAxis.date_generated}</div>
+            <div>Labels: {dailyAxis.top_label} / {dailyAxis.bottom_label} × {dailyAxis.left_label} / {dailyAxis.right_label}</div>
+          </div>
+        </div>
 
         {/* Toggle Filter */}
         <div className="flex justify-center mb-6">
@@ -146,12 +181,12 @@ export default function Results() {
           </p>
         </div>
 
-        {/* Axis */}
+        {/* Axis Display */}
         {(view === 'self' && results.selfPlaced.length === 0) || (view === 'guessed' && results.guessed.length === 0) ? (
           <div className="text-center py-8">
             <p className="text-lg text-gray-600 mb-4">
               {view === 'self'
-                ? 'No self-placements found for this group'
+                ? 'No self-placements found for this axis'
                 : 'No one has guessed your position yet'}
             </p>
           </div>
@@ -159,18 +194,8 @@ export default function Results() {
           <div className="relative">
             <Axis
               size={AXIS_SIZE}
-              labels={dailyAxis?.labels || {
-                top: 'Wet Sock',
-                bottom: 'Dry Tongue',
-                left: 'Tree Hugger',
-                right: 'Lumberjack'
-              }}
-              labelColors={dailyAxis?.labels.labelColors || {
-                top: 'rgba(251, 207, 232, 0.95)',
-                bottom: 'rgba(167, 243, 208, 0.95)',
-                left: 'rgba(221, 214, 254, 0.95)',
-                right: 'rgba(253, 230, 138, 0.95)'
-              }}
+              labels={dailyAxis.labels}
+              labelColors={dailyAxis.labels.labelColors}
             >
               <div
                 className="absolute inset-0 z-10"
@@ -274,25 +299,24 @@ export default function Results() {
           </div>
         )}
 
-
-        {/* Navigation */}
+        {/* Navigation - ENHANCED */}
         <div className="flex justify-center mt-8 space-x-4">
           <button
             onClick={() => router.push('/home')}
-            className="bg-gray-500 text-white px-6 py-2 rounded-lg"
+            className="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600 transition"
           >
             Home
           </button>
           <button
             onClick={() => router.push('/groups/place_yourself')}
-            className="bg-blue-500 text-white px-6 py-2 rounded-lg"
+            className="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition"
           >
             New Round
           </button>
         </div>
       </div>
 
-      {/* Comments Panel */}
+      {/* Comments Panel - Same as before */}
       <div
         className={`fixed bottom-0 left-0 right-0 z-50 bg-[#FFF5D6] rounded-t-[36px] shadow-2xl transition-transform duration-300 ease-in-out transform ${
           selectedToken ? 'translate-y-0' : 'translate-y-full'
