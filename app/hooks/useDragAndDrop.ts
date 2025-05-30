@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { useDraggable, TouchSensor, MouseSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { positionUtils } from '../utils/positionUtils'
+import { DEFAULTS } from '../utils/constants'
 
 interface Position {
   x: number
@@ -94,6 +95,11 @@ export function useDragAndDrop(
   const handleDragCancel = () => {
     setActiveId(null)
   }
+
+  const clampToGrid = (x: number, y: number) => ({
+    x: Math.max(DEFAULTS.TOKEN_SIZE, Math.min(x, DEFAULT_GRID_WIDTH)),
+    y: Math.max(DEFAULTS.TOKEN_SIZE/2, Math.min(y, gridHeight + neutralZoneHeight - DEFAULTS.TOKEN_SIZE/2))
+  })
 
   return {
     positions,

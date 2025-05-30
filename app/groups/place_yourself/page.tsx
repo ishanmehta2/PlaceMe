@@ -6,13 +6,13 @@ import { useUserData } from '../../hooks/useUserData'
 import { useGroupWorkflow } from '../../hooks/useGroupWorkflow'
 import { TokenGrid } from '../../components/TokenGrid'
 import { useDailyAxis } from '../../hooks/useDailyAxis'
-import { DndContext, useSensor, useSensors, PointerSensor } from '@dnd-kit/core'
-import { restrictToWindowEdges } from '@dnd-kit/modifiers'
+import { DEFAULTS } from '@/app/utils/constants'
+import { positionUtils } from '@/app/utils/positionUtils'
 
 // Constants for sizing
-const AXIS_WIDTH = 300
-const AXIS_HEIGHT = 300
-const NEUTRAL_ZONE_HEIGHT = 100
+const AXIS_WIDTH = DEFAULTS.AXIS_WIDTH
+const AXIS_HEIGHT = DEFAULTS.AXIS_HEIGHT
+const NEUTRAL_ZONE_HEIGHT = DEFAULTS.NEUTRAL_ZONE_HEIGHT
 
 export default function PlaceYourself() {
   const router = useRouter()
@@ -69,8 +69,11 @@ export default function PlaceYourself() {
       setIsSaving(true)
       console.log('🎯 Saving with session-based dailyAxis:', dailyAxis)
       
+      // Convert pixel position to percentage before saving
+      const percentagePosition = positionUtils.pixelPositionToPercentage(userPosition.x, userPosition.y)
+      
       // Pass the saveAxisToDatabase function to saveSelfPlacement
-      await saveSelfPlacement(userPosition, userName, firstName, dailyAxis, saveAxisToDatabase)
+      await saveSelfPlacement(percentagePosition, userName, firstName, dailyAxis, saveAxisToDatabase)
       
       // Navigate to place_others
       router.push('/groups/place_others')
@@ -114,6 +117,7 @@ export default function PlaceYourself() {
             <strong>DEBUG:</strong>
             <pre>{JSON.stringify({
               userPosition,
+              percentagePosition: positionUtils.pixelPositionToPercentage(userPosition.x, userPosition.y),
               userName,
               firstName,
               userAvatar,

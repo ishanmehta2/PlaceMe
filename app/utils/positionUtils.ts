@@ -1,3 +1,5 @@
+import { DEFAULTS } from './constants';
+
 export const positionUtils = {
   calculateTokenPosition: (x: number, y: number, size: number) => ({
     left: x,
@@ -5,6 +7,16 @@ export const positionUtils = {
     transform: 'translate(-50%, -50%)',
     marginLeft: `-${size/2}px`,
     marginTop: `-${size/2}px`,
+  }),
+
+  pixelPositionToPercentage: (pixelX: number, pixelY: number) => ({
+    x: (pixelX - DEFAULTS.TOKEN_SIZE) / (DEFAULTS.AXIS_WIDTH - DEFAULTS.TOKEN_SIZE),
+    y: (pixelY - DEFAULTS.TOKEN_SIZE/2) / (DEFAULTS.AXIS_HEIGHT - DEFAULTS.TOKEN_SIZE)
+  }),
+
+  percentageToPixelPosition: (percentageX: number, percentageY: number) => ({
+    x: percentageX * DEFAULTS.AXIS_WIDTH,
+    y: percentageY * (DEFAULTS.AXIS_HEIGHT + DEFAULTS.NEUTRAL_ZONE_HEIGHT)
   }),
   
   calculateTokenSize: (baseSize: number) => ({

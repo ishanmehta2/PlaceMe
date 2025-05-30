@@ -2,6 +2,7 @@ import { useDraggable } from '@dnd-kit/core'
 import Token from './Token'
 import { tokenStyles } from '../styles/tokenStyles'
 import { positionUtils } from '../utils/positionUtils'
+import { DEFAULTS } from '../utils/constants'
 
 interface Position {
   x: number
@@ -20,10 +21,6 @@ interface DraggableTokenProps {
   isPlaced?: boolean
 }
 
-const TOKEN_SIZE = 35
-const DEFAULT_GRID_WIDTH = 300
-const DEFAULT_GRID_HEIGHT = 300
-const DEFAULT_NEUTRAL_ZONE_HEIGHT = 100
 const DRAG_SCALE = 1.2
 const DRAG_SHADOW = 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.2))'
 
@@ -33,9 +30,9 @@ export function DraggableToken({
   isDragging, 
   userAvatar, 
   firstName,
-  gridWidth = DEFAULT_GRID_WIDTH,
-  gridHeight = DEFAULT_GRID_HEIGHT,
-  neutralZoneHeight = DEFAULT_NEUTRAL_ZONE_HEIGHT,
+  gridWidth = DEFAULTS.AXIS_WIDTH,
+  gridHeight = DEFAULTS.AXIS_HEIGHT,
+  neutralZoneHeight = DEFAULTS.NEUTRAL_ZONE_HEIGHT,
   isPlaced = false
 }: DraggableTokenProps) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
@@ -49,15 +46,14 @@ export function DraggableToken({
         position.y + transform.y,
         gridWidth,
         gridHeight,
-        TOKEN_SIZE,
+        DEFAULTS.TOKEN_SIZE,
         neutralZoneHeight
       )
     : position
 
   const dragStyle = {
     ...tokenStyles.base,
-    ...positionUtils.calculateTokenPosition(newPosition.x, newPosition.y, TOKEN_SIZE),
-    zIndex: isDragging ? 10 : 1,
+    ...positionUtils.calculateTokenPosition(newPosition.x, newPosition.y, DEFAULTS.TOKEN_SIZE),
     cursor: 'grab',
     transition: isDragging ? 'none' : 'all 0.2s ease',
     transform: isDragging ? `scale(${DRAG_SCALE})` : 'scale(1)',
@@ -77,7 +73,7 @@ export function DraggableToken({
         id={id}
         name={firstName}
         position={{ x: 0, y: 0 }}
-        size={TOKEN_SIZE}
+        size={DEFAULTS.TOKEN_SIZE}
         color={isPlaced ? "#3B82F6" : "#94A3B8"}
         imageUrl={userAvatar}
         disablePositioning

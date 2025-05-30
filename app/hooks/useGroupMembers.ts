@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/auth/supabase'
+import { DEFAULTS } from '../utils/constants'
 
 interface Position {
   x: number
@@ -48,7 +49,7 @@ const calculateInitialPositions = (memberCount: number): Position[] => {
     const centerX = 150 // Half of 300
     const centerY = 150 // Half of 300
     
-    const x = Math.max(18, Math.min(282, centerX + Math.cos(angle) * radius)) // 18 = TOKEN_SIZE/2, 282 = 300-18
+    const x = Math.max(DEFAULTS.TOKEN_SIZE/2, Math.min(DEFAULTS.AXIS_WIDTH - DEFAULTS.TOKEN_SIZE/2, centerX + Math.cos(angle) * radius))
     const y = Math.max(18, Math.min(282, centerY + Math.sin(angle) * radius))
     
     positions.push({ x, y })

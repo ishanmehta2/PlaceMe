@@ -8,12 +8,12 @@ import { useDailyAxis } from "../../hooks/useDailyAxis";
 import Axis from "../../components/Axis";
 import Token from "../../components/Token";
 import { ArrowLeftIcon, ChevronDownIcon } from "@heroicons/react/24/solid";
+import { DEFAULTS } from '../../utils/constants'
 
 // Constants for sizing
 const AXIS_WIDTH = 300;
 const AXIS_HEIGHT = 300;
 const TOKEN_SIZE = 35;
-const GUESS_TOKEN_SIZE = 25;
 
 export default function Results() {
   const router = useRouter();
@@ -248,7 +248,7 @@ export default function Results() {
                         id={`guess-${index}`}
                         name={guess.guesser_name}
                         position={{ x: guess.position.x, y: guess.position.y }}
-                        size={GUESS_TOKEN_SIZE}
+                        size={DEFAULTS.GUESS_TOKEN_SIZE}
                         color={guessedResult.color}
                         imageUrl={guess.guesser_avatar}
                         style={{
@@ -265,7 +265,7 @@ export default function Results() {
                         x: guessedResult.averagePosition.x,
                         y: guessedResult.averagePosition.y,
                       }}
-                      size={TOKEN_SIZE + 5}
+                      size={DEFAULTS.TOKEN_SIZE + 5}
                       color={guessedResult.color}
                       imageUrl={guessedResult.avatar_url}
                       isSelected={selectedToken === guessedResult.user_id}

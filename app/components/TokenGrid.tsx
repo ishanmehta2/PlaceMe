@@ -3,6 +3,7 @@ import { DraggableToken } from './DraggableToken'
 import Axis from './Axis'
 import { useDragAndDrop } from '../hooks/useDragAndDrop'
 import { useState, useEffect } from 'react'
+import { DEFAULTS } from '../utils/constants'
 
 interface Position {
   x: number
@@ -48,9 +49,9 @@ export function TokenGrid({
   onPlacementChange,
   axisLabels, 
   axisColors,
-  axisWidth = DEFAULT_AXIS_WIDTH,
-  axisHeight = DEFAULT_AXIS_HEIGHT,
-  neutralZoneHeight = DEFAULT_NEUTRAL_ZONE_HEIGHT
+  axisWidth = DEFAULTS.AXIS_WIDTH,
+  axisHeight = DEFAULTS.AXIS_HEIGHT,
+  neutralZoneHeight = DEFAULTS.NEUTRAL_ZONE_HEIGHT
 }: TokenGridProps) {
   // Initialize positions from tokens
   const initialPositions = tokens.reduce((acc, token) => ({
@@ -77,7 +78,7 @@ export function TokenGrid({
     Object.entries(positions).forEach(([tokenId, position]) => {
       // Token is considered placed if it's completely within the axis area
       // Check if the bottom edge of the token (y + TOKEN_SIZE/2) is within the axis height
-      if (position.y + TOKEN_SIZE/2 <= axisHeight) {
+      if (position.y + DEFAULTS.TOKEN_SIZE/2 <= axisHeight) {
         newPlacedTokens.add(tokenId)
       }
     })

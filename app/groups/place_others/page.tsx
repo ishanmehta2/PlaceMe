@@ -6,11 +6,48 @@ import { useUserData } from "../../hooks/useUserData";
 import { useGroupWorkflow } from "../../hooks/useGroupWorkflow";
 import { useDailyAxis } from "../../hooks/useDailyAxis";
 import { TokenGrid } from "../../components/TokenGrid";
+import { DEFAULTS } from "../../utils/constants";
+import { positionUtils } from "@/app/utils/positionUtils";
 
 // Constants for sizing
-const AXIS_WIDTH = 300;
-const AXIS_HEIGHT = 300;
-const NEUTRAL_ZONE_HEIGHT = 100;
+const AXIS_WIDTH = DEFAULTS.AXIS_WIDTH;
+const AXIS_HEIGHT = DEFAULTS.AXIS_HEIGHT;
+const NEUTRAL_ZONE_HEIGHT = DEFAULTS.NEUTRAL_ZONE_HEIGHT;
+const TOKEN_SIZE = DEFAULTS.TOKEN_SIZE;
+
+// Calculate initial positions in the neutral zone
+const calculateInitialPositions = (
+  memberCount: number,
+  gridWidth: number = AXIS_WIDTH,
+  gridHeight: number = AXIS_HEIGHT,
+  neutralZoneHeight: number = NEUTRAL_ZONE_HEIGHT
+) => {
+  const positions = [];
+  const tokenSize = TOKEN_SIZE;
+
+  // Calculate padding to evenly space tokens
+  // We want (n-1) gaps between tokens and 2 gaps at the edges
+  // Total available space = gridWidth - (n * tokenSize)
+  // Number of gaps = n + 1
+  const totalGaps = memberCount + 1;
+  const totalTokenWidth = memberCount * tokenSize;
+  const padding = (gridWidth - totalTokenWidth) / totalGaps;
+
+  // Position in the middle of the neutral zone
+  const neutralZoneY = gridHeight + (neutralZoneHeight / 2);
+
+  for (let i = 0; i < memberCount; i++) {
+    // Calculate x position accounting for token size
+    // Each position is: padding + (i * (tokenSize + padding)) + (tokenSize / 2)
+    // This centers the token in its allocated space
+    const x = padding + (i * (tokenSize + padding)) + (tokenSize / 2);
+    const y = neutralZoneY;
+
+    positions.push({ x, y });
+  }
+
+  return positions;
+};
 
 export default function PlaceOthers() {
   const router = useRouter();
@@ -25,9 +62,8 @@ export default function PlaceOthers() {
     loading,
     error: groupError,
     selectedGroup,
-    tokens,
+    tokens: initialTokens,
     getWorkflowGroup,
-    handlePositionChange,
     saveOthersPlacement,
   } = useGroupWorkflow();
 
@@ -40,11 +76,35 @@ export default function PlaceOthers() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [allTokensPlaced, setAllTokensPlaced] = useState(false);
+  const [initializedTokens, setInitializedTokens] = useState(false);
+  const [localTokens, setLocalTokens] = useState(initialTokens);
 
   // Get the workflow group on component mount
   useEffect(() => {
     getWorkflowGroup();
   }, []);
+
+  // Initialize token positions when tokens are loaded
+  useEffect(() => {
+    if (initialTokens.length > 0 && !initializedTokens) {
+      const initialPositions = calculateInitialPositions(initialTokens.length);
+      const updatedTokens = initialTokens.map((token, index) => ({
+        ...token,
+        position: initialPositions[index]
+      }));
+      setLocalTokens(updatedTokens);
+      setInitializedTokens(true);
+    }
+  }, [initialTokens, initializedTokens]);
+
+  // Handle position changes locally
+  const handlePositionChange = (tokenId: string, position: Position) => {
+    setLocalTokens(prevTokens =>
+      prevTokens.map(token =>
+        token.id === tokenId ? { ...token, position } : token
+      )
+    );
+  };
 
   // Handle next button
   const handleNext = async () => {
@@ -56,7 +116,8 @@ export default function PlaceOthers() {
     try {
       setIsSaving(true);
       console.log("🎯 Saving others placement with dailyAxis:", dailyAxis);
-      await saveOthersPlacement(dailyAxis);
+      // Pass the local tokens to saveOthersPlacement
+      await saveOthersPlacement(dailyAxis, localTokens);
       router.push("/groups/results");
     } catch (err: any) {
       console.error("Error saving positions:", err);
@@ -97,7 +158,7 @@ export default function PlaceOthers() {
           <div className="w-full mb-4 p-2 bg-gray-100 rounded text-xs text-left break-all">
             <strong>DEBUG:</strong>
             <pre>{JSON.stringify({
-              tokens,
+              tokens: localTokens,
               selectedGroup,
               dailyAxis
             }, null, 2)}</pre>
@@ -124,7 +185,7 @@ export default function PlaceOthers() {
           </div>
         )}
 
-        {tokens.length === 0 ? (
+        {initialTokens.length === 0 ? (
           <div className="text-center">
             <p className="text-lg mb-6">
               You're the only member in this group right now.
@@ -140,7 +201,7 @@ export default function PlaceOthers() {
           <>
             <div className="flex justify-center w-full">
               <TokenGrid
-                tokens={tokens}
+                tokens={localTokens}
                 onPositionChange={handlePositionChange}
                 onPlacementChange={setAllTokensPlaced}
                 axisLabels={dailyAxis?.labels || {

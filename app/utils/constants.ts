@@ -1,0 +1,7 @@
+export const DEFAULTS = {
+    NEUTRAL_ZONE_HEIGHT: 100,
+    AXIS_HEIGHT: 300,
+    AXIS_WIDTH: 300,
+    TOKEN_SIZE: 35,
+    GUESS_TOKEN_SIZE: 25,
+} as const; 

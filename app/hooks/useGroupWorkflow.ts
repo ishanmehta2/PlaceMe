@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/auth/supabase";
+import { positionUtils } from "@/app/utils/positionUtils";
 
 interface Position {
   x: number;
@@ -67,40 +68,6 @@ const getMemberColor = (index: number): string => {
   ];
 
   return colors[index % colors.length];
-};
-
-// Calculate initial positions in the neutral zone
-const calculateInitialPositions = (
-  memberCount: number,
-  gridWidth: number = 300,
-  gridHeight: number = 300,
-  neutralZoneHeight: number = 100
-): Position[] => {
-  const positions: Position[] = [];
-  const tokenSize = 35; // Size of each token
-
-  // Calculate padding to evenly space tokens
-  // We want (n-1) gaps between tokens and 2 gaps at the edges
-  // Total available space = gridWidth - (n * tokenSize)
-  // Number of gaps = n + 1
-  const totalGaps = memberCount + 1;
-  const totalTokenWidth = memberCount * tokenSize;
-  const padding = (gridWidth - totalTokenWidth) / totalGaps;
-
-  // Position in the middle of the neutral zone
-  const neutralZoneY = gridHeight + neutralZoneHeight / 2; // Center token vertically
-
-  for (let i = 0; i < memberCount; i++) {
-    // Calculate x position accounting for token size
-    // Each position is: padding + (i * (tokenSize + padding)) + (tokenSize / 2)
-    // This centers the token in its allocated space
-    const x = padding + i * (tokenSize + padding) + tokenSize / 2;
-    const y = neutralZoneY;
-
-    positions.push({ x, y });
-  }
-
-  return positions;
 };
 
 export const useGroupWorkflow = () => {
@@ -304,18 +271,12 @@ export const useGroupWorkflow = () => {
       const otherMembers = allGroupMembers.filter(
         (member) => member.user_id !== currentUserId
       );
-      const initialPositions = calculateInitialPositions(
-        otherMembers.length,
-        300, // gridWidth
-        300, // gridHeight
-        100 // neutralZoneHeight
-      );
 
-      const userTokens: UserToken[] = otherMembers.map((member, index) => ({
+      const userTokens: UserToken[] = otherMembers.map((member) => ({
         id: member.user_id,
         firstName: member.username,
         userAvatar: member.avatar_url,
-        position: initialPositions[index],
+        position: { x: 0, y: 0 }, // Initial position will be set by the page
       }));
 
       setTokens(userTokens);
@@ -328,13 +289,16 @@ export const useGroupWorkflow = () => {
   // Handle position changes for place others
   const handlePositionChange = async (tokenId: string, position: Position) => {
     try {
+      // Convert percentage position to pixel position for storage
+      const pixelPosition = positionUtils.percentageToPixelPosition(position.x, position.y);
+      
       setTokens((prevTokens) =>
         prevTokens.map((token) =>
-          token.id === tokenId ? { ...token, position } : token
+          token.id === tokenId ? { ...token, position: pixelPosition } : token
         )
       );
 
-      console.log(`Updated position for ${tokenId}:`, position);
+      console.log(`Updated position for ${tokenId}:`, pixelPosition);
     } catch (err: any) {
       console.error("Error updating position:", err);
       setError(err.message || "Failed to update position");
@@ -370,9 +334,8 @@ export const useGroupWorkflow = () => {
       // First, save the axes to database and get the real database ID
       const realAxisId = await saveAxisToDatabase(dailyAxis);
 
-      // Always save as 0-300 (pixels)
-      const pixelX = position.x;
-      const pixelY = position.y;
+      // Convert percentage position to pixel position
+      const pixelPosition = positionUtils.percentageToPixelPosition(position.x, position.y);
 
       // Get today's date for consistency
       const today = new Date().toISOString().split("T")[0];
@@ -385,8 +348,8 @@ export const useGroupWorkflow = () => {
           group_code: selectedGroup.invite_code,
           username: userName,
           first_name: firstName,
-          position_x: pixelX,
-          position_y: pixelY,
+          position_x: pixelPosition.x,
+          position_y: pixelPosition.y,
           top_label: dailyAxis.labels.top,
           bottom_label: dailyAxis.labels.bottom,
           left_label: dailyAxis.labels.left,
@@ -410,7 +373,7 @@ export const useGroupWorkflow = () => {
   };
 
   // Save others placements - UPDATED for dual axis support
-  const saveOthersPlacement = async (dailyAxis: DailyAxis) => {
+  const saveOthersPlacement = async (dailyAxis: DailyAxis, tokens: UserToken[]) => {
     if (!selectedGroup || !currentUserId) {
       throw new Error("Missing user or group information");
     }
@@ -442,9 +405,8 @@ export const useGroupWorkflow = () => {
       const today = new Date().toISOString().split("T")[0];
 
       for (const token of tokens) {
-        // Always save as 0-300 (pixels)
-        const pixelX = token.position.x;
-        const pixelY = token.position.y;
+        // Convert percentage position to pixel position
+        const pixelPosition = positionUtils.percentageToPixelPosition(token.position.x, token.position.y);
 
         const { error: saveError } = await supabase
           .from("place_others")
@@ -455,8 +417,8 @@ export const useGroupWorkflow = () => {
             group_code: selectedGroup.invite_code,
             username: token.firstName,
             first_name: token.firstName,
-            position_x: pixelX,
-            position_y: pixelY,
+            position_x: pixelPosition.x,
+            position_y: pixelPosition.y,
             top_label: dailyAxis.labels.top,
             bottom_label: dailyAxis.labels.bottom,
             left_label: dailyAxis.labels.left,
@@ -490,6 +452,7 @@ export const useGroupWorkflow = () => {
     selectedGroup,
     groupMembers,
     tokens,
+    setTokens,
     initializeWorkflow,
     getWorkflowGroup,
     handlePositionChange,
