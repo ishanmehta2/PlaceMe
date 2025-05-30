@@ -20,9 +20,9 @@ interface GroupMember {
   borderColor?: string
 }
 
-interface DailyPlacement {
-  date: string
+interface ActiveAxisResults {
   axis_id: string
+  date_generated: string
   members: GroupMember[]
   labels: {
     top: string
@@ -66,8 +66,9 @@ export default function Home() {
   const router = useRouter()
   const [activeGroup, setActiveGroup] = useState<string | null>(null)
   const [groupName, setGroupName] = useState('')
-  const [dailyPlacements, setDailyPlacements] = useState<DailyPlacement[]>([])
+  const [activeAxisResults, setActiveAxisResults] = useState<ActiveAxisResults | null>(null)
   const [loading, setLoading] = useState(true)
+  const [axisLoading, setAxisLoading] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [plusDropdownOpen, setPlusDropdownOpen] = useState(false)
   const [userGroups, setUserGroups] = useState<UserGroup[]>([])
@@ -142,7 +143,7 @@ export default function Home() {
           setActiveGroup(firstGroup.id);
           setGroupName(firstGroup.name);
           setActiveGroupCreator(firstGroup.created_by || null);
-          await fetchDailyPlacements(firstGroup.id);
+          await fetchActiveAxisResults(firstGroup.id);
         }
 
       } catch (error) {
@@ -155,45 +156,51 @@ export default function Home() {
     fetchUserAndGroups();
   }, [router]);
 
-  // Simplified approach - get sessions directly from placement tables
-  const fetchDailyPlacements = async (groupId: string) => {
+  // Fetch the active axis and its results for the given group
+  const fetchActiveAxisResults = async (groupId: string) => {
     try {
-      console.log('🔍 Fetching placement sessions for group:', groupId);
+      setAxisLoading(true);
+      console.log('🔍 Fetching active axis results for group:', groupId);
 
-      // 1️⃣ Get all self-placements for this group
+      // 1️⃣ Get the active axis for this group (today's axis)
+      const today = new Date().toISOString().split('T')[0];
+      const { data: activeAxis, error: axisError } = await supabase
+        .from('axes')
+        .select('*')
+        .eq('group_id', groupId)
+        .eq('date_generated', today)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (axisError) {
+        console.error("Error fetching active axis:", axisError);
+        setActiveAxisResults(null);
+        return;
+      }
+
+      if (!activeAxis) {
+        console.log('No active axis found for today in this group');
+        setActiveAxisResults(null);
+        return;
+      }
+
+      console.log('📊 Found active axis:', activeAxis.id);
+
+      // 2️⃣ Get all self-placements for this specific axis
       const { data: selfPlacements, error: selfError } = await supabase
         .from('place_yourself')
         .select('*')
         .eq('group_id', groupId)
-        .order('created_at', { ascending: false });
+        .eq('axis_id', activeAxis.id);
 
       if (selfError) {
         console.error("Error fetching self placements:", selfError);
         return;
       }
 
-      if (!selfPlacements || selfPlacements.length === 0) {
-        console.log('No self-placements found for this group');
-        setDailyPlacements([]);
-        return;
-      }
+      console.log('👤 Found', selfPlacements?.length || 0, 'self-placements for active axis');
 
-      console.log('👤 Found', selfPlacements.length, 'self-placements');
-
-      // 2️⃣ Get all others-placements for this group  
-      const { data: othersPlacements, error: othersError } = await supabase
-        .from('place_others')
-        .select('*')
-        .eq('group_id', groupId)
-        .order('created_at', { ascending: false });
-
-      if (othersError) {
-        console.error("Error fetching others placements:", othersError);
-      }
-
-      console.log('👥 Found', othersPlacements?.length || 0, 'others-placements');
-
-      // 3️⃣ Get group members for color assignment
+      // 3️⃣ Get group members for color assignment and profiles
       const { data: membersData, error: membersError } = await supabase
         .from('group_members')
         .select('user_id')
@@ -223,42 +230,15 @@ export default function Home() {
         memberColorMap.set(userId, getMemberColor(index));
       });
 
-      // 6️⃣ Group placements by axis_id to create sessions
-      const sessionMap = new Map();
-
-      // Process self-placements first
-      selfPlacements.forEach(placement => {
-        const axisId = placement.axis_id || 'unknown';
-        
-        if (!sessionMap.has(axisId)) {
-          sessionMap.set(axisId, {
-            axis_id: axisId,
-            created_at: placement.created_at,
-            labels: {
-              top: placement.top_label,
-              bottom: placement.bottom_label,
-              left: placement.left_label,
-              right: placement.right_label,
-              labelColors: {
-                top: 'rgba(251, 207, 232, 0.95)', // Pink
-                bottom: 'rgba(167, 243, 208, 0.95)', // Green  
-                left: 'rgba(221, 214, 254, 0.95)', // Purple
-                right: 'rgba(253, 230, 138, 0.95)' // Yellow
-              }
-            },
-            members: [],
-            processedUsers: new Set()
-          });
-        }
-
-        const session = sessionMap.get(axisId);
-        
-        // Add self-placement if not already processed
-        if (!session.processedUsers.has(placement.user_id)) {
+      // 6️⃣ Process self-placements into display format
+      const members: GroupMember[] = [];
+      
+      if (selfPlacements) {
+        selfPlacements.forEach(placement => {
           const profile = profiles?.find(p => p.id === placement.user_id);
           const color = memberColorMap.get(placement.user_id) || getMemberColor(0);
           
-          session.members.push({
+          members.push({
             id: placement.user_id,
             name: profile?.name || placement.first_name || 'Unknown',
             imageUrl: profile?.avatar_url || `https://i.pravatar.cc/150?img=${Math.floor(Math.random() * 50)}`,
@@ -269,77 +249,54 @@ export default function Home() {
             color: color,
             borderColor: color
           });
-          
-          session.processedUsers.add(placement.user_id);
-        }
-      });
-
-      // Add others-placements to existing sessions
-      if (othersPlacements) {
-        othersPlacements.forEach(placement => {
-          const axisId = placement.axis_id || 'unknown';
-          
-          // Only add to sessions that already exist (have self-placements)
-          if (sessionMap.has(axisId)) {
-            const session = sessionMap.get(axisId);
-            
-            // Add if not already processed
-            if (!session.processedUsers.has(placement.placed_user_id)) {
-              const profile = profiles?.find(p => p.id === placement.placed_user_id);
-              const color = memberColorMap.get(placement.placed_user_id) || getMemberColor(0);
-              
-              session.members.push({
-                id: placement.placed_user_id,
-                name: profile?.name || placement.first_name || 'Unknown',
-                imageUrl: profile?.avatar_url || `https://i.pravatar.cc/150?img=${Math.floor(Math.random() * 50)}`,
-                position: {
-                  x: (placement.position_x - 50) / 50,
-                  y: (placement.position_y - 50) / 50
-                },
-                color: color,
-                borderColor: color
-              });
-              
-              session.processedUsers.add(placement.placed_user_id);
-            }
-          }
         });
       }
 
-      // 7️⃣ Convert sessions to display format and sort by most recent
-      const sessions = Array.from(sessionMap.values())
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-        .slice(0, 10) // Limit to 10 most recent
-        .map(session => ({
-          date: formatDate(new Date(session.created_at)),
-          axis_id: session.axis_id,
-          members: session.members,
-          labels: session.labels
-        }));
+      // 7️⃣ Create the results object
+      const results: ActiveAxisResults = {
+        axis_id: activeAxis.id,
+        date_generated: activeAxis.date_generated,
+        members: members,
+        labels: {
+          top: activeAxis.top_label,
+          bottom: activeAxis.bottom_label,
+          left: activeAxis.left_label,
+          right: activeAxis.right_label,
+          labelColors: {
+            top: 'rgba(251, 207, 232, 0.95)', // Pink
+            bottom: 'rgba(167, 243, 208, 0.95)', // Green  
+            left: 'rgba(221, 214, 254, 0.95)', // Purple
+            right: 'rgba(253, 230, 138, 0.95)' // Yellow
+          }
+        }
+      };
 
-      console.log('📋 Final sessions:', sessions.length);
-      setDailyPlacements(sessions);
+      console.log('✅ Active axis results prepared:', results.members.length, 'members');
+      setActiveAxisResults(results);
       
     } catch (error) {
-      console.error("Error fetching placement sessions:", error);
-      setDailyPlacements([]);
+      console.error("Error fetching active axis results:", error);
+      setActiveAxisResults(null);
+    } finally {
+      setAxisLoading(false);
     }
   };
 
   // Switch to a different group
   const switchGroup = async (groupId: string) => {
-    setLoading(true);
+    setAxisLoading(true);
     const group = userGroups.find(g => g.id === groupId);
     if (group) {
       setActiveGroup(groupId);
       setGroupName(group.name);
       setActiveGroupCreator(group.created_by || null);
-      await fetchDailyPlacements(groupId);
+      await fetchActiveAxisResults(groupId);
     }
-    setLoading(false);
+    setAxisLoading(false);
   };
 
-  const formatDate = (date: Date): string => {
+  const formatDate = (dateString: string): string => {
+    const date = new Date(dateString);
     return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
   }
   
@@ -377,14 +334,12 @@ export default function Home() {
         setActiveGroup(newGroup.id);
         setGroupName(newGroup.name);
         setActiveGroupCreator(newGroup.created_by || null);
-        fetchDailyPlacements(newGroup.id);
+        fetchActiveAxisResults(newGroup.id);
       } else {
         // No groups left - clear active group & name
         setActiveGroup(null);
         setGroupName('');
-        setDailyPlacements([]);
-        // Optionally navigate or show a message
-        // router.push('/no-groups'); // Or stay on this page and show a message
+        setActiveAxisResults(null);
       }
   
       return updatedGroups;
@@ -542,7 +497,9 @@ export default function Home() {
               <div key={group.id} className="mb-3">
                 <div className="flex items-center justify-between ml-2 mr-2">
                   <div
-                    className="text-2xl font-black cursor-pointer hover:text-gray-700"
+                    className={`text-2xl font-black cursor-pointer hover:text-gray-700 ${
+                      activeGroup === group.id ? 'text-blue-600' : ''
+                    }`}
                     onClick={() => {
                       switchGroup(group.id);
                       setMenuOpen(false);
@@ -638,6 +595,7 @@ export default function Home() {
         }`}
       >
         {userGroups.length === 0 ? (
+          // No groups state
           <div className="flex flex-col items-center justify-center h-[70vh]">
             <div className="text-2xl font-bold mb-4">You're not in any groups yet!</div>
             <div className="text-lg mb-6">Create a new group or join an existing one.</div>
@@ -656,10 +614,17 @@ export default function Home() {
               </button>
             </div>
           </div>
-        ) : dailyPlacements.length === 0 ? (
+        ) : axisLoading ? (
+          // Loading active axis
           <div className="flex flex-col items-center justify-center h-[70vh]">
-            <div className="text-2xl font-bold mb-4">No activity yet!</div>
-            <div className="text-lg mb-6">Start by placing yourself to see results here.</div>
+            <div className="text-2xl font-bold mb-4">Loading {groupName}...</div>
+            <div className="text-lg">Fetching today's axis results...</div>
+          </div>
+        ) : !activeAxisResults ? (
+          // No active axis for today
+          <div className="flex flex-col items-center justify-center h-[70vh]">
+            <div className="text-2xl font-bold mb-4">No activity today!</div>
+            <div className="text-lg mb-6">Start by placing yourself to see results for {groupName}.</div>
             <button
               className="px-6 py-3 bg-black text-white rounded-xl font-bold"
               onClick={() => router.push('/groups/place_yourself')}
@@ -668,40 +633,39 @@ export default function Home() {
             </button>
           </div>
         ) : (
-          dailyPlacements.map((placement) => (
-            <div key={`${placement.axis_id}-${placement.date}`} className="w-full max-w-[430px] mb-8 flex flex-col items-center">
-              <h2 className="text-2xl font-black mb-2" style={{ fontFamily: 'Arial, sans-serif' }}>
-                {placement.date}
-              </h2>
-              <div
-                onClick={() => activeGroup && router.push(`/groups/results`)}
-                className="cursor-pointer w-full max-w-[calc(100vw-3rem)] sm:max-w-[calc(100vw-3rem)] md:max-w-[430px]"
-              >
-                <Axis
-                  labels={{
-                    top: placement.labels.top,
-                    bottom: placement.labels.bottom,
-                    left: placement.labels.left,
-                    right: placement.labels.right,
-                  }}
-                  labelColors={placement.labels.labelColors}
-                  size={500}
-                  tokenSize={36}
-                  tokens={placement.members.map((member) => ({
-                    id: member.id,
-                    name: member.name,
-                    x: member.position?.x || 0,
-                    y: member.position?.y || 0,
-                    color: member.color,
-                    borderColor: member.borderColor,
-                    imageUrl: member.imageUrl,
-                  }))}
-                />
-              </div>
+          // Show active axis results
+          <div className="w-full max-w-[430px] mb-8 flex flex-col items-center">
+            <h2 className="text-2xl font-black mb-2" style={{ fontFamily: 'Arial, sans-serif' }}>
+              {formatDate(activeAxisResults.date_generated)}
+            </h2>
+            <div className="text-sm text-gray-600 mb-4">
+              {activeAxisResults.members.length} member{activeAxisResults.members.length !== 1 ? 's' : ''} placed
             </div>
-          ))
+            <div
+              onClick={() => router.push(`/groups/results`)}
+              className="cursor-pointer w-full max-w-[calc(100vw-3rem)] sm:max-w-[calc(100vw-3rem)] md:max-w-[430px]"
+            >
+              <Axis
+                labels={activeAxisResults.labels}
+                labelColors={activeAxisResults.labels.labelColors}
+                size={500}
+                tokenSize={36}
+                tokens={activeAxisResults.members.map((member) => ({
+                  id: member.id,
+                  name: member.name,
+                  x: member.position?.x || 0,
+                  y: member.position?.y || 0,
+                  color: member.color,
+                  borderColor: member.borderColor,
+                  imageUrl: member.imageUrl,
+                }))}
+              />
+            </div>
+          </div>
         )}
       </div>
+
+      {/* Leave Group Confirmation */}
       {showLeaveConfirm && (
         <div
           className="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center z-50"
