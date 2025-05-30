@@ -26,7 +26,8 @@ export default function PlaceYourself() {
     saveSelfPlacement 
   } = useGroupWorkflow()
   
-  const { dailyAxis, loading: axisLoading, error: axisError, saveAxisToDatabase } = useDailyAxis(selectedGroup?.id || null)
+  // Updated: useDailyAxis now handles the "once per day" logic internally
+  const { dailyAxis, loading: axisLoading, error: axisError } = useDailyAxis(selectedGroup?.id || null)
   
   const [isSaving, setIsSaving] = useState(false)
   const [showHomeConfirm, setShowHomeConfirm] = useState(false)
@@ -70,15 +71,15 @@ export default function PlaceYourself() {
     setShowHomeConfirm(false)
   }
 
-  // Proceed to place others
+  // Proceed to place others - UPDATED for new workflow
   const handleNext = async () => {
     if (!selectedGroup || !userName || !firstName) {
-      setError?.('Missing required information. Please try again.')
+      console.error('Missing required user/group information')
       return
     }
 
     if (!dailyAxis) {
-      setError?.('Daily axis is still loading. Please wait a moment and try again.')
+      console.error('Daily axis is still loading')
       return
     }
 
@@ -86,29 +87,34 @@ export default function PlaceYourself() {
       setIsSaving(true)
       
       const userPosition = positions['user-token']
-      console.log('🎯 Saving with session-based dailyAxis:', dailyAxis)
+      console.log('💾 Saving self placement with daily axis:', dailyAxis.id)
       
-      // Pass the saveAxisToDatabase function to saveSelfPlacement
-      await saveSelfPlacement(userPosition, userName, firstName, dailyAxis, saveAxisToDatabase)
+      // UPDATED: No longer need to pass saveAxisToDatabase function
+      // The axis is already saved to database by useDailyAxis hook
+      await saveSelfPlacement(userPosition, userName, firstName, dailyAxis)
       
       // Navigate to place_others
       router.push('/groups/place_others')
     } catch (err: any) {
       console.error('Error saving position:', err)
-      setError?.(err.message || 'Failed to save your preferences')
+      // You could add error state display here if needed
     } finally {
       setIsSaving(false)
     }
   }
 
+  // Loading state - wait for all required data
   if (loading || userLoading || axisLoading) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-[#FFF8E1]">
         <div className="text-2xl">Loading...</div>
+        {loading && <div className="text-sm text-gray-600 mt-2">Loading groups...</div>}
+        {axisLoading && <div className="text-sm text-gray-600 mt-2">Loading daily axes...</div>}
       </main>
     )
   }
 
+  // Error state - show any errors that occurred
   if (error || userError || axisError) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-[#FFF8E1]">
@@ -125,25 +131,54 @@ export default function PlaceYourself() {
     )
   }
 
+  // Missing group state
+  if (!selectedGroup) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-[#FFF8E1]">
+        <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded-2xl mb-4">
+          No group selected for workflow. Please try again.
+        </div>
+        <button
+          onClick={() => {
+            // Clear any stale session data and try again
+            sessionStorage.removeItem('workflowGroupId')
+            sessionStorage.removeItem('workflowGroupName') 
+            sessionStorage.removeItem('workflowGroupCode')
+            initializeWorkflow()
+          }}
+          className="bg-blue-500 text-white px-6 py-2 rounded-lg"
+        >
+          Try Again
+        </button>
+      </main>
+    )
+  }
+
   return (
     <>
       <main className="flex min-h-screen flex-col items-center pt-8 p-4 bg-[#FFF8E1]">
         <div className="w-full max-w-sm">
-          {/* Debug: Show selected group */}
-          {selectedGroup && (
-            <div className="bg-blue-100 border border-blue-300 rounded-lg p-4 mb-6">
-              <h3 className="font-bold text-lg mb-2">Selected Group:</h3>
-              <div className="flex justify-between items-center">
-                <span className="font-medium">{selectedGroup.name}</span>
-                <span className="bg-green-200 text-green-800 px-2 py-1 rounded text-xs">
-                  RANDOMLY SELECTED
-                </span>
-              </div>
-              <p className="text-xs text-gray-600 mt-1">
-                From your {userGroups.length} group{userGroups.length !== 1 ? 's' : ''}
-              </p>
+          {/* Debug: Show selected group - IMPROVED */}
+          <div className="bg-blue-100 border border-blue-300 rounded-lg p-4 mb-6">
+            <h3 className="font-bold text-lg mb-2">Selected Group:</h3>
+            <div className="flex justify-between items-center">
+              <span className="font-medium">{selectedGroup.name}</span>
+              <span className="bg-green-200 text-green-800 px-2 py-1 rounded text-xs">
+                RANDOMLY SELECTED
+              </span>
             </div>
-          )}
+            <p className="text-xs text-gray-600 mt-1">
+              From your {userGroups.length} group{userGroups.length !== 1 ? 's' : ''}
+            </p>
+            {/* Show axis info for debugging */}
+            {dailyAxis && (
+              <div className="mt-2 text-xs text-gray-500">
+                <div>Axis ID: {dailyAxis.id}</div>
+                <div>Generated: {dailyAxis.date_generated}</div>
+                <div>Active: {dailyAxis.is_active ? 'Yes' : 'No'}</div>
+              </div>
+            )}
+          </div>
 
           {/* Header */}
           <div className="bg-[#FFE082] py-4 px-4 rounded-full w-full mx-auto mb-8">
@@ -167,10 +202,10 @@ export default function PlaceYourself() {
                 <Axis
                   size={AXIS_SIZE}
                   labels={dailyAxis?.labels || {
-                    top: 'Wet Sock',
-                    bottom: 'Dry Tongue',
-                    left: 'Tree Hugger',
-                    right: 'Lumberjack'
+                    top: 'Loading...',
+                    bottom: 'Loading...',
+                    left: 'Loading...',
+                    right: 'Loading...'
                   }}
                   labelColors={dailyAxis?.labels.labelColors || {
                     top: 'rgba(251, 207, 232, 0.95)', // Pink
@@ -207,25 +242,32 @@ export default function PlaceYourself() {
               </span>
             </button>
 
-            {/* Next Button */}
+            {/* Next Button - UPDATED conditions */}
             <button
               onClick={handleNext}
-              disabled={isSaving || !selectedGroup || !dailyAxis}
-              className="bg-[#60A5FA] py-3 px-10 rounded-full disabled:opacity-50"
+              disabled={isSaving || !selectedGroup || !dailyAxis || !userName || !firstName}
+              className="bg-[#60A5FA] py-3 px-10 rounded-full disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#3B82F6] transition"
             >
               <span className="text-xl font-black" style={{ 
                 textShadow: '2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000',
                 color: 'white',
                 fontFamily: 'Arial, sans-serif'
               }}>
-                {isSaving ? 'Saving...' : !dailyAxis ? 'Loading Axis...' : 'Next'}
+                {isSaving 
+                  ? 'Saving...' 
+                  : !dailyAxis 
+                    ? 'Loading Axis...' 
+                    : !userName || !firstName
+                      ? 'Loading User...'
+                      : 'Next'
+                }
               </span>
             </button>
           </div>
         </div>
       </main>
 
-      {/* Confirmation Popup */}
+      {/* Confirmation Popup - UPDATED message */}
       {showHomeConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
           <div className="bg-white rounded-2xl p-6 mx-4 max-w-sm w-full shadow-2xl">
@@ -233,7 +275,7 @@ export default function PlaceYourself() {
               Leave Without Placing?
             </h3>
             <p className="text-gray-700 mb-6 text-center">
-              You have not yet placed yourself. If you proceed to the home page, you will not be able to see these axes. Confirm?
+              You haven't placed yourself yet. The daily axes for {selectedGroup?.name} will remain available if you return today. Confirm?
             </p>
             <div className="flex space-x-3">
               <button

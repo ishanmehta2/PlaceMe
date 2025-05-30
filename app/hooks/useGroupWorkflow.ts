@@ -1,4 +1,4 @@
-// hooks/useGroupWorkflow.js
+// hooks/useGroupWorkflow.ts
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/auth/supabase'
@@ -39,6 +39,7 @@ interface DailyAxis {
   top_label: string
   bottom_label: string
   date_generated: string
+  is_active: boolean
   labels: {
     top: string
     bottom: string
@@ -102,6 +103,7 @@ export const useGroupWorkflow = () => {
   const initializeWorkflow = async () => {
     try {
       setLoading(true)
+      setError(null)
       
       // Get the authenticated user
       const { data: { user }, error: userError } = await supabase.auth.getUser()
@@ -170,13 +172,15 @@ export const useGroupWorkflow = () => {
       const randomGroup = formattedGroups[randomIndex]
       setSelectedGroup(randomGroup)
       
-      // Store in session storage for persistence across pages
+      // Store in session storage for persistence across workflow pages
       sessionStorage.setItem('workflowGroupId', randomGroup.id)
       sessionStorage.setItem('workflowGroupName', randomGroup.name)
       sessionStorage.setItem('workflowGroupCode', randomGroup.invite_code)
       
-      // Fetch members for the selected group
-      await fetchGroupMembers(randomGroup.id, user.id)
+      console.log('🎯 Selected random group for workflow:', randomGroup.name, '(ID:', randomGroup.id, ')')
+      
+      // Fetch members for the selected group (but don't wait for it to complete loading)
+      fetchGroupMembers(randomGroup.id, user.id)
       
     } catch (err: any) {
       console.error('Error initializing workflow:', err)
@@ -190,6 +194,7 @@ export const useGroupWorkflow = () => {
   const getWorkflowGroup = async () => {
     try {
       setLoading(true)
+      setError(null)
       
       // Get the authenticated user
       const { data: { user }, error: userError } = await supabase.auth.getUser()
@@ -220,6 +225,7 @@ export const useGroupWorkflow = () => {
       }
       
       setSelectedGroup(workflowGroup)
+      console.log('📋 Retrieved workflow group from session:', workflowGroup.name, '(ID:', workflowGroup.id, ')')
       
       // Fetch members for the workflow group
       await fetchGroupMembers(groupId, user.id)
@@ -286,6 +292,7 @@ export const useGroupWorkflow = () => {
       }))
       
       setTokens(userTokens)
+      console.log(`👥 Loaded ${allGroupMembers.length} group members (${otherMembers.length} others to place)`)
       
     } catch (err: any) {
       console.error('Error fetching group members:', err)
@@ -304,14 +311,23 @@ export const useGroupWorkflow = () => {
         )
       )
       
-      console.log(`Updated position for ${tokenId}:`, position)
+      console.log(`📍 Updated position for ${tokenId}:`, position)
     } catch (err: any) {
       console.error('Error updating position:', err)
       setError(err.message || 'Failed to update position')
     }
   }
 
-  const saveSelfPlacement = async (position: Position, userName: string, firstName: string, dailyAxis: DailyAxis, saveAxisToDatabase: Function) => {
+  /**
+   * Save self placement - UPDATED for new workflow
+   * No longer needs saveAxisToDatabase function since axes are already in database
+   */
+  const saveSelfPlacement = async (
+    position: Position, 
+    userName: string, 
+    firstName: string, 
+    dailyAxis: DailyAxis
+  ) => {
     if (!selectedGroup || !currentUserId) {
       throw new Error('Missing user or group information')
     }
@@ -321,10 +337,8 @@ export const useGroupWorkflow = () => {
     }
     
     try {
-      console.log('🔄 Saving self placement with session-based axis data')
-      
-      // First, save the axes to database and get the real database ID
-      const realAxisId = await saveAxisToDatabase(dailyAxis)
+      console.log('💾 Saving self placement for user:', firstName)
+      console.log('📊 Using daily axis:', dailyAxis.id, 'for group:', selectedGroup.name)
       
       // Convert position from pixels to percent if needed
       const percentX = typeof position.x === 'number' && position.x > 100 ? (position.x / 300) * 100 : position.x
@@ -333,7 +347,44 @@ export const useGroupWorkflow = () => {
       // Get today's date for consistency
       const today = new Date().toISOString().split('T')[0]
       
-      const { error: saveError } = await supabase
+      // Check if user already placed themselves today for this group
+      const { data: existingPlacement, error: checkError } = await supabase
+        .from('place_yourself')
+        .select('id')
+        .eq('user_id', currentUserId)
+        .eq('group_id', selectedGroup.id)
+        .eq('axis_id', dailyAxis.id)
+        .maybeSingle()
+
+      if (checkError) {
+        console.error('Error checking existing placement:', checkError)
+        // Continue anyway - we'll let the database handle duplicates
+      }
+
+      if (existingPlacement) {
+        console.log('📝 User already placed themselves today, updating existing placement')
+        
+        // Update existing placement
+        const { error: updateError } = await supabase
+          .from('place_yourself')
+          .update({
+            position_x: percentX,
+            position_y: percentY,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingPlacement.id)
+
+        if (updateError) {
+          console.error('❌ Error updating self placement:', updateError)
+          throw updateError
+        }
+
+        console.log('✅ Successfully updated self placement')
+        return
+      }
+
+      // Insert new placement
+      const { error: insertError } = await supabase
         .from('place_yourself')
         .insert({
           user_id: currentUserId,
@@ -347,25 +398,28 @@ export const useGroupWorkflow = () => {
           bottom_label: dailyAxis.labels.bottom,
           left_label: dailyAxis.labels.left,
           right_label: dailyAxis.labels.right,
-          axis_id: realAxisId, // Use the real database ID
+          axis_id: dailyAxis.id,
           vertical_axis_pair_id: dailyAxis.vertical_axis_pair_id,
           horizontal_axis_pair_id: dailyAxis.horizontal_axis_pair_id,
           date_placed: today
         })
       
-      if (saveError) {
-        console.error('❌ Error saving self placement:', saveError)
-        throw saveError
+      if (insertError) {
+        console.error('❌ Error inserting self placement:', insertError)
+        throw insertError
       }
       
-      console.log('✅ Successfully saved self placement')
+      console.log('✅ Successfully saved new self placement')
+      
     } catch (err: any) {
       console.error('Error saving self placement:', err)
       throw new Error(err.message || 'Failed to save your placement')
     }
   }
 
-  // Save others placements - UPDATED for dual axis support
+  /**
+   * Save others placements - UPDATED for new workflow
+   */
   const saveOthersPlacement = async (dailyAxis: DailyAxis) => {
     if (!selectedGroup || !currentUserId) {
       throw new Error('Missing user or group information')
@@ -376,39 +430,58 @@ export const useGroupWorkflow = () => {
     }
     
     try {
-      console.log('🔄 Saving others placements with dual axis data')
+      console.log('💾 Saving others placements for', tokens.length, 'group members')
+      console.log('📊 Using daily axis:', dailyAxis.id, 'for group:', selectedGroup.name)
       
       // Get today's date for consistency
       const today = new Date().toISOString().split('T')[0]
       
-      for (const token of tokens) {
-        const { error: saveError } = await supabase
-          .from('place_others')
-          .insert({
-            placer_user_id: currentUserId,
-            placed_user_id: token.id,
-            group_id: selectedGroup.id,
-            group_code: selectedGroup.invite_code,
-            username: token.firstName,
-            first_name: token.firstName,
-            position_x: token.position.x,
-            position_y: token.position.y,
-            top_label: dailyAxis.labels.top,
-            bottom_label: dailyAxis.labels.bottom,
-            left_label: dailyAxis.labels.left,
-            right_label: dailyAxis.labels.right,
-            axis_id: dailyAxis.id,
-            vertical_axis_pair_id: dailyAxis.vertical_axis_pair_id,
-            horizontal_axis_pair_id: dailyAxis.horizontal_axis_pair_id,
-            date_placed: today
-          })
-        
-        if (saveError) {
-          console.error(`❌ Error saving position for ${token.firstName}:`, saveError)
-        } else {
-          console.log(`✅ Successfully saved position for ${token.firstName}`)
-        }
+      // Clear existing placements by this user for this axis to avoid duplicates
+      const { error: deleteError } = await supabase
+        .from('place_others')
+        .delete()
+        .eq('placer_user_id', currentUserId)
+        .eq('axis_id', dailyAxis.id)
+
+      if (deleteError) {
+        console.warn('⚠️ Could not clear existing placements (continuing anyway):', deleteError)
       }
+
+      // Insert new placements
+      const placementsToInsert = tokens.map(token => ({
+        placer_user_id: currentUserId,
+        placed_user_id: token.id,
+        group_id: selectedGroup.id,
+        group_code: selectedGroup.invite_code,
+        username: token.firstName,
+        first_name: token.firstName,
+        position_x: token.position.x,
+        position_y: token.position.y,
+        top_label: dailyAxis.labels.top,
+        bottom_label: dailyAxis.labels.bottom,
+        left_label: dailyAxis.labels.left,
+        right_label: dailyAxis.labels.right,
+        axis_id: dailyAxis.id,
+        vertical_axis_pair_id: dailyAxis.vertical_axis_pair_id,
+        horizontal_axis_pair_id: dailyAxis.horizontal_axis_pair_id,
+        date_placed: today
+      }))
+
+      if (placementsToInsert.length > 0) {
+        const { error: insertError } = await supabase
+          .from('place_others')
+          .insert(placementsToInsert)
+        
+        if (insertError) {
+          console.error('❌ Error saving others placements:', insertError)
+          throw insertError
+        }
+        
+        console.log('✅ Successfully saved', placementsToInsert.length, 'others placements')
+      } else {
+        console.log('ℹ️ No other members to place')
+      }
+      
     } catch (err: any) {
       console.error('Error saving others placements:', err)
       throw new Error(err.message || 'Failed to save placements')

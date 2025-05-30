@@ -1,4 +1,4 @@
-// hooks/useResults.js
+// hooks/useResults.ts
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/auth/supabase'
@@ -33,6 +33,31 @@ interface GroupResults {
   guessed: GuessedResult[]
 }
 
+interface DailyAxis {
+  id: string
+  group_id: string
+  vertical_axis_pair_id: string
+  horizontal_axis_pair_id: string
+  left_label: string
+  right_label: string
+  top_label: string
+  bottom_label: string
+  date_generated: string
+  is_active: boolean
+  labels: {
+    top: string
+    bottom: string
+    left: string
+    right: string
+    labelColors: {
+      top: string
+      bottom: string
+      left: string
+      right: string
+    }
+  }
+}
+
 // Colors for members (consistent assignment)
 const getMemberColor = (index: number): string => {
   const colors = [
@@ -55,6 +80,7 @@ export const useResults = () => {
   const [error, setError] = useState<string | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [selectedGroup, setSelectedGroup] = useState<any>(null)
+  const [dailyAxis, setDailyAxis] = useState<DailyAxis | null>(null)
   const [results, setResults] = useState<GroupResults>({
     selfPlaced: [],
     guessed: []
@@ -64,6 +90,7 @@ export const useResults = () => {
     const fetchResults = async () => {
       try {
         setLoading(true)
+        setError(null)
         
         // Get the authenticated user
         const { data: { user }, error: userError } = await supabase.auth.getUser()
@@ -92,22 +119,78 @@ export const useResults = () => {
           invite_code: groupCode
         })
         
-        // Fetch self placements (where everyone placed themselves)
+        console.log('📊 Loading results for group:', groupName, '(ID:', groupId, ')')
+
+        // STEP 1: Get the current daily axis for this group
+        const today = new Date().toISOString().split('T')[0]
+        const { data: axisData, error: axisError } = await supabase
+          .from('axes')
+          .select('*')
+          .eq('group_id', groupId)
+          .eq('date_generated', today)
+          .eq('is_active', true)
+          .maybeSingle()
+
+        if (axisError) {
+          console.error('Error fetching daily axis:', axisError)
+          setError('Failed to load daily axis data')
+          return
+        }
+
+        if (!axisData) {
+          console.warn('No daily axis found for today')
+          setError('No axis data found for today. Please start a new workflow.')
+          return
+        }
+
+        // Process axis data
+        const processedAxis: DailyAxis = {
+          id: axisData.id,
+          group_id: axisData.group_id,
+          vertical_axis_pair_id: axisData.vertical_axis_pair_id,
+          horizontal_axis_pair_id: axisData.horizontal_axis_pair_id,
+          left_label: axisData.left_label,
+          right_label: axisData.right_label,
+          top_label: axisData.top_label,
+          bottom_label: axisData.bottom_label,
+          date_generated: axisData.date_generated,
+          is_active: axisData.is_active,
+          labels: {
+            top: axisData.top_label,
+            bottom: axisData.bottom_label,
+            left: axisData.left_label,
+            right: axisData.right_label,
+            labelColors: {
+              // Default colors - could be enhanced to store these in database
+              top: 'rgba(251, 207, 232, 0.95)', // Pink
+              bottom: 'rgba(167, 243, 208, 0.95)', // Green
+              left: 'rgba(221, 214, 254, 0.95)', // Purple
+              right: 'rgba(253, 230, 138, 0.95)' // Yellow
+            }
+          }
+        }
+
+        setDailyAxis(processedAxis)
+        console.log('✅ Loaded daily axis:', processedAxis.id)
+
+        // STEP 2: Fetch self placements for this specific axis
         const { data: selfPlacements, error: selfError } = await supabase
           .from('place_yourself')
           .select('*')
           .eq('group_id', groupId)
-          .order('created_at', { ascending: false }) // Get most recent placements
+          .eq('axis_id', processedAxis.id) // Filter by specific axis
+          .order('created_at', { ascending: false })
         
         if (selfError) {
           console.error('Error fetching self placements:', selfError)
         }
         
-        // Fetch guessed placements (where others placed the current user)
+        // STEP 3: Fetch guessed placements for this specific axis (where others placed the current user)
         const { data: guessedPlacements, error: guessedError } = await supabase
           .from('place_others')
           .select('*')
           .eq('group_id', groupId)
+          .eq('axis_id', processedAxis.id) // Filter by specific axis
           .eq('placed_user_id', user.id) // Where others placed the current user
           .order('created_at', { ascending: false })
         
@@ -115,7 +198,7 @@ export const useResults = () => {
           console.error('Error fetching guessed placements:', guessedError)
         }
         
-        // Get group members for avatars and names
+        // STEP 4: Get group members for avatars and names
         const { data: membersData, error: membersError } = await supabase
           .from('group_members')
           .select('user_id')
@@ -125,7 +208,7 @@ export const useResults = () => {
           console.error("Error fetching group members:", membersError)
         }
         
-        // Get profiles for all members
+        // STEP 5: Get profiles for all members
         const memberUserIds = membersData?.map(member => member.user_id) || []
         
         let profiles = []
@@ -142,7 +225,7 @@ export const useResults = () => {
           }
         }
         
-        // Process self placements - get most recent for each user
+        // STEP 6: Process self placements - get most recent for each user
         const selfPlacedMap = new Map()
         selfPlacements?.forEach(placement => {
           if (!selfPlacedMap.has(placement.user_id)) {
@@ -158,7 +241,7 @@ export const useResults = () => {
           }
         })
         
-        // Process guessed placements (where others placed current user)
+        // STEP 7: Process guessed placements (where others placed current user)
         const guessedResult: GuessedResult[] = []
         
         if (guessedPlacements && guessedPlacements.length > 0) {
@@ -202,6 +285,10 @@ export const useResults = () => {
           selfPlaced: Array.from(selfPlacedMap.values()),
           guessed: guessedResult
         })
+
+        console.log('📊 Results loaded:')
+        console.log('   - Self placements:', Array.from(selfPlacedMap.values()).length)
+        console.log('   - Guessed placements:', guessedResult.length)
         
       } catch (err: any) {
         console.error('Error fetching results:', err)
@@ -219,6 +306,7 @@ export const useResults = () => {
     error,
     currentUserId,
     selectedGroup,
+    dailyAxis, // Now returns the actual daily axis data
     results
   }
 }
