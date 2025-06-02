@@ -26,6 +26,7 @@ interface AxisResults {
   axis_id: string
   date_generated: string
   is_active: boolean
+  is_locked: boolean // NEW: Track if this axis is locked for current user
   members: GroupMember[]
   labels: {
     top: string
@@ -79,13 +80,13 @@ export default function Home() {
   const [activeGroupCreator, setActiveGroupCreator] = useState<string | null>(null) // Creator ID
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
 
-  // NEW: Comments functionality state
+  // Comments functionality state
   const [selectedToken, setSelectedToken] = useState<string | null>(null)
   const [selectedAxis, setSelectedAxis] = useState<AxisResults | null>(null)
   const [newComment, setNewComment] = useState('')
   const commentsEndRef = useRef<HTMLDivElement | null>(null)
 
-  // NEW: Comments hook for the selected token and axis
+  // Comments hook for the selected token and axis
   const {
     comments,
     loading: commentsLoading,
@@ -122,10 +123,13 @@ export default function Home() {
     }
   }
 
-  // NEW: Handle token click to show comments
+  // Handle token click to show comments (only for unlocked axes)
   const handleTokenClick = (e: React.MouseEvent, member: GroupMember, axis: AxisResults) => {
     e.preventDefault()
     e.stopPropagation()
+    
+    // Don't allow comments on locked axes
+    if (axis.is_locked) return
     
     if (selectedToken === member.id && selectedAxis?.axis_id === axis.axis_id) {
       // Close if clicking the same token
@@ -136,6 +140,19 @@ export default function Home() {
       setSelectedToken(member.id)
       setSelectedAxis(axis)
     }
+  }
+
+  // NEW: Handle locked axis click - navigate to place_yourself for this group
+  const handleLockedAxisClick = (axis: AxisResults) => {
+    if (!activeGroup) return
+    
+    // Set up session storage for the workflow
+    sessionStorage.setItem('workflowGroupId', activeGroup)
+    sessionStorage.setItem('workflowGroupName', groupName)
+    sessionStorage.setItem('workflowGroupCode', userGroups.find(g => g.id === activeGroup)?.invite_code || '')
+    
+    // Navigate to place_yourself
+    router.push('/groups/place_yourself')
   }
 
   const getSelectedTokenInfo = () => {
@@ -211,7 +228,7 @@ export default function Home() {
           setActiveGroup(firstGroup.id);
           setGroupName(firstGroup.name);
           setActiveGroupCreator(firstGroup.created_by || null);
-          await fetchHistoricalAxes(firstGroup.id);
+          await fetchHistoricalAxes(firstGroup.id, user.id);
         }
 
       } catch (error) {
@@ -224,14 +241,13 @@ export default function Home() {
     fetchUserAndGroups();
   }, [router]);
 
-  // Fetch historical axes and their results for the given group
-  const fetchHistoricalAxes = async (groupId: string) => {
+  // UPDATED: Fetch historical axes and check lock status
+  const fetchHistoricalAxes = async (groupId: string, userId: string) => {
     try {
       setAxesLoading(true);
       console.log('🔍 Fetching historical axes for group:', groupId);
 
       // 1️⃣ Get all axes for this group (most recent first, limit to 10)
-      // Remove the is_active filter to get ALL axes for this group
       const { data: axes, error: axesError } = await supabase
         .from('axes')
         .select('*')
@@ -252,11 +268,23 @@ export default function Home() {
       }
 
       console.log('📊 Found', axes.length, 'axes for group:');
-      axes.forEach((axis, index) => {
-        console.log(`  ${index + 1}. ID: ${axis.id}, Date: ${axis.date_generated}, Active: ${axis.is_active}`);
-      });
 
-      // 2️⃣ Get group members for color assignment and profiles
+      // 2️⃣ NEW: Check which axes the user has placed themselves on
+      const axisIds = axes.map(axis => axis.id);
+      const { data: userPlacements, error: placementsError } = await supabase
+        .from('place_yourself')
+        .select('axis_id')
+        .eq('user_id', userId)
+        .in('axis_id', axisIds);
+
+      if (placementsError) {
+        console.error("Error fetching user placements:", placementsError);
+      }
+
+      const unlockedAxisIds = new Set(userPlacements?.map(p => p.axis_id) || []);
+      console.log('🔓 User has unlocked axes:', Array.from(unlockedAxisIds));
+
+      // 3️⃣ Get group members for color assignment and profiles
       const { data: membersData, error: membersError } = await supabase
         .from('group_members')
         .select('user_id')
@@ -270,7 +298,7 @@ export default function Home() {
       const memberUserIds = membersData?.map(member => member.user_id) || [];
       console.log('👥 Group has', memberUserIds.length, 'members');
       
-      // 3️⃣ Get profiles for all members
+      // 4️⃣ Get profiles for all members
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('id, name, avatar_url')
@@ -281,69 +309,74 @@ export default function Home() {
         return;
       }
 
-      // 4️⃣ Create member color mapping
+      // 5️⃣ Create member color mapping
       const memberColorMap = new Map();
       memberUserIds.forEach((userId, index) => {
         memberColorMap.set(userId, getMemberColor(index));
       });
 
-      // 5️⃣ Process each axis and get its placements
+      // 6️⃣ Process each axis and get its placements
       const axisResults: AxisResults[] = [];
       
       for (const axis of axes) {
-        console.log('📋 Processing axis:', axis.id, 'for date:', axis.date_generated);
+        const isLocked = !unlockedAxisIds.has(axis.id);
+        console.log('📋 Processing axis:', axis.id, 'for date:', axis.date_generated, '- Locked:', isLocked);
 
-        // Get self-placements for this specific axis (most recent per user)
-        const { data: selfPlacements, error: selfError } = await supabase
-          .from('place_yourself')
-          .select('*')
-          .eq('group_id', groupId)
-          .eq('axis_id', axis.id)
-          .order('created_at', { ascending: false }); // Get most recent first
+        let members: GroupMember[] = [];
 
-        if (selfError) {
-          console.error("Error fetching self placements for axis", axis.id, ":", selfError);
-          continue; // Skip this axis but continue with others
-        }
+        // Only fetch placement data for unlocked axes
+        if (!isLocked) {
+          // Get self-placements for this specific axis (most recent per user)
+          const { data: selfPlacements, error: selfError } = await supabase
+            .from('place_yourself')
+            .select('*')
+            .eq('group_id', groupId)
+            .eq('axis_id', axis.id)
+            .order('created_at', { ascending: false }); // Get most recent first
 
-        console.log(`  └─ Found ${selfPlacements?.length || 0} self-placements for axis ${axis.id}`);
+          if (selfError) {
+            console.error("Error fetching self placements for axis", axis.id, ":", selfError);
+          } else {
+            console.log(`  └─ Found ${selfPlacements?.length || 0} self-placements for axis ${axis.id}`);
 
-        // Process self-placements into display format
-        const members: GroupMember[] = [];
-        const processedUserIds = new Set<string>(); // Track processed users to avoid duplicates
-        
-        if (selfPlacements) {
-          selfPlacements.forEach(placement => {
-            // Skip if we've already processed this user for this axis
-            if (processedUserIds.has(placement.user_id)) {
-              console.log(`  ⚠️ Skipping duplicate placement for user ${placement.user_id} in axis ${axis.id}`);
-              return;
+            // Process self-placements into display format
+            const processedUserIds = new Set<string>(); // Track processed users to avoid duplicates
+            
+            if (selfPlacements) {
+              selfPlacements.forEach(placement => {
+                // Skip if we've already processed this user for this axis
+                if (processedUserIds.has(placement.user_id)) {
+                  console.log(`  ⚠️ Skipping duplicate placement for user ${placement.user_id} in axis ${axis.id}`);
+                  return;
+                }
+                
+                const profile = profiles?.find(p => p.id === placement.user_id);
+                const color = memberColorMap.get(placement.user_id) || getMemberColor(0);
+                
+                members.push({
+                  id: placement.user_id,
+                  name: profile?.name || placement.first_name || 'Unknown',
+                  imageUrl: profile?.avatar_url || `https://i.pravatar.cc/150?img=${Math.floor(Math.random() * 50)}`,
+                  position: {
+                    x: (placement.position_x - 50) / 50, // Convert 0-100% to -1 to 1
+                    y: (placement.position_y - 50) / 50
+                  },
+                  color: color,
+                  borderColor: color
+                });
+                
+                processedUserIds.add(placement.user_id);
+              });
             }
-            
-            const profile = profiles?.find(p => p.id === placement.user_id);
-            const color = memberColorMap.get(placement.user_id) || getMemberColor(0);
-            
-            members.push({
-              id: placement.user_id,
-              name: profile?.name || placement.first_name || 'Unknown',
-              imageUrl: profile?.avatar_url || `https://i.pravatar.cc/150?img=${Math.floor(Math.random() * 50)}`,
-              position: {
-                x: (placement.position_x - 50) / 50, // Convert 0-100% to -1 to 1
-                y: (placement.position_y - 50) / 50
-              },
-              color: color,
-              borderColor: color
-            });
-            
-            processedUserIds.add(placement.user_id);
-          });
+          }
         }
 
-        // Create the axis result (include even if no placements for debugging)
+        // Create the axis result
         const axisResult: AxisResults = {
           axis_id: axis.id,
           date_generated: axis.date_generated,
           is_active: axis.is_active,
+          is_locked: isLocked, // NEW: Track lock status
           members: members,
           labels: {
             top: axis.top_label,
@@ -360,12 +393,12 @@ export default function Home() {
         };
 
         axisResults.push(axisResult);
-        console.log('✅ Added axis', axis.id, 'with', members.length, 'members to results');
+        console.log('✅ Added axis', axis.id, 'with', members.length, 'members to results (Locked:', isLocked, ')');
       }
 
       console.log('📊 Final historical axes to display:', axisResults.length);
       axisResults.forEach((result, index) => {
-        console.log(`  ${index + 1}. ${result.date_generated} (${result.is_active ? 'Active' : 'Inactive'}) - ${result.members.length} members`);
+        console.log(`  ${index + 1}. ${result.date_generated} (${result.is_active ? 'Active' : 'Inactive'}) ${result.is_locked ? '🔒 LOCKED' : '🔓 UNLOCKED'} - ${result.members.length} members`);
       });
       
       setHistoricalAxes(axisResults);
@@ -380,6 +413,8 @@ export default function Home() {
 
   // Switch to a different group
   const switchGroup = async (groupId: string) => {
+    if (!currentUser) return;
+    
     setAxesLoading(true);
     // Close any open comments when switching groups
     setSelectedToken(null);
@@ -390,7 +425,7 @@ export default function Home() {
       setActiveGroup(groupId);
       setGroupName(group.name);
       setActiveGroupCreator(group.created_by || null);
-      await fetchHistoricalAxes(groupId);
+      await fetchHistoricalAxes(groupId, currentUser.id);
     }
     setAxesLoading(false);
   };
@@ -434,7 +469,9 @@ export default function Home() {
         setActiveGroup(newGroup.id);
         setGroupName(newGroup.name);
         setActiveGroupCreator(newGroup.created_by || null);
-        fetchHistoricalAxes(newGroup.id);
+        if (currentUser) {
+          fetchHistoricalAxes(newGroup.id, currentUser.id);
+        }
       } else {
         // No groups left - clear active group & name
         setActiveGroup(null);
@@ -504,7 +541,7 @@ export default function Home() {
                 className="px-6 py-3 text-base text-left w-full hover:bg-gray-100"
                 onClick={() => {
                   setPlusDropdownOpen(false);
-                  router.push(`/groups/group_code?groupId=${activeGroup}`);
+                  router.push('/groups/invite'); // Fixed the invite path
                 }}
               >
                 Invite
@@ -747,36 +784,65 @@ export default function Home() {
                     </span>
                   )}
                 </div>
-                <div className="text-sm text-gray-600 mb-4">
-                  {axis.members.length} member{axis.members.length !== 1 ? 's' : ''} placed
-                </div>
-                <div
-                  className="w-full max-w-[calc(100vw-3rem)] sm:max-w-[calc(100vw-3rem)] md:max-w-[430px] relative"
-                >
-                  <Axis
-                    labels={axis.labels}
-                    labelColors={axis.labels.labelColors}
-                    size={500}
-                    tokenSize={36}
-                    tokens={axis.members
-                      .filter((member, memberIndex, self) => 
-                        // Additional safety check: ensure unique IDs even if duplicates slipped through
-                        memberIndex === self.findIndex(m => m.id === member.id)
-                      )
-                      .map((member) => ({
-                        id: member.id,
-                        name: member.name,
-                        x: member.position?.x || 0,
-                        y: member.position?.y || 0,
-                        color: member.color,
-                        borderColor: member.borderColor,
-                        imageUrl: member.imageUrl,
-                        onClick: (e: React.MouseEvent) => handleTokenClick(e, member, axis), // NEW: Add click handler
-                        isSelected: selectedToken === member.id && selectedAxis?.axis_id === axis.axis_id, // NEW: Show selection
-                      }))
-                    }
-                  />
-                </div>
+                
+                {/* NEW: Different display based on lock status */}
+                {axis.is_locked ? (
+                  // LOCKED STATE - Show lock design
+                  <div 
+                    onClick={() => handleLockedAxisClick(axis)}
+                    className="cursor-pointer w-full max-w-[calc(100vw-3rem)] sm:max-w-[calc(100vw-3rem)] md:max-w-[430px] hover:opacity-80 transition-opacity"
+                  >
+                    <div className="relative bg-gray-100 border-2 border-black rounded-3xl p-8 min-h-[300px] flex flex-col items-center justify-center">
+                      {/* Grayed out axis background */}
+                      <div className="absolute inset-4 opacity-20">
+                        <div className="w-full h-full relative">
+                          <div className="absolute left-1/2 top-0 h-full w-1 bg-gray-400 transform -translate-x-1/2"></div>
+                          <div className="absolute top-1/2 left-0 w-full h-1 bg-gray-400 transform -translate-y-1/2"></div>
+                        </div>
+                      </div>
+                      
+                      {/* Lock content */}
+                      <div className="text-center z-10">
+                        <div className="text-2xl font-black mb-4">new axis just dropped!</div>
+                        <div className="text-6xl mb-4">🔒</div>
+                        <div className="text-xl font-bold">place yourself to unlock.</div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  // UNLOCKED STATE - Show normal axis
+                  <>
+                    <div className="text-sm text-gray-600 mb-4">
+                      {axis.members.length} member{axis.members.length !== 1 ? 's' : ''} placed
+                    </div>
+                    <div className="w-full max-w-[calc(100vw-3rem)] sm:max-w-[calc(100vw-3rem)] md:max-w-[430px] relative">
+                      <Axis
+                        labels={axis.labels}
+                        labelColors={axis.labels.labelColors}
+                        size={500}
+                        tokenSize={36}
+                        tokens={axis.members
+                          .filter((member, memberIndex, self) => 
+                            // Additional safety check: ensure unique IDs even if duplicates slipped through
+                            memberIndex === self.findIndex(m => m.id === member.id)
+                          )
+                          .map((member) => ({
+                            id: member.id,
+                            name: member.name,
+                            x: member.position?.x || 0,
+                            y: member.position?.y || 0,
+                            color: member.color,
+                            borderColor: member.borderColor,
+                            imageUrl: member.imageUrl,
+                            onClick: (e: React.MouseEvent) => handleTokenClick(e, member, axis),
+                            isSelected: selectedToken === member.id && selectedAxis?.axis_id === axis.axis_id,
+                          }))
+                        }
+                      />
+                    </div>
+                  </>
+                )}
+                
                 {/* Add separator line between axes except for the last one */}
                 {index < historicalAxes.length - 1 && (
                   <div className="w-full border-t border-gray-300 mt-8"></div>
@@ -787,10 +853,10 @@ export default function Home() {
         )}
       </div>
 
-      {/* NEW: Comments Panel - Same design as results page */}
+      {/* Comments Panel - Only show for unlocked axes */}
       <div
         className={`fixed bottom-0 left-0 right-0 z-50 bg-[#FFF5D6] rounded-t-[36px] shadow-2xl transition-transform duration-300 ease-in-out transform ${
-          selectedToken ? 'translate-y-0' : 'translate-y-full'
+          selectedToken && !selectedAxis?.is_locked ? 'translate-y-0' : 'translate-y-full'
         }`}
         style={{
           maxHeight: '70vh',
@@ -798,7 +864,7 @@ export default function Home() {
           boxShadow: '0 -8px 32px rgba(0,0,0,0.12)'
         }}
       >
-        {selectedToken && selectedTokenInfo && selectedAxis && (
+        {selectedToken && selectedTokenInfo && selectedAxis && !selectedAxis.is_locked && (
           <>
             <div className="flex items-center justify-between px-4 pt-4 pb-2">
               <button
