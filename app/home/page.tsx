@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/auth/supabase'
+import { useComments } from '../hooks/useComments'
 import Axis from '../components/Axis'
 import { FaCrown } from "react-icons/fa";
+import { ChevronDownIcon } from '@heroicons/react/24/solid'
 
 interface GroupMember {
   id: string
@@ -20,9 +22,10 @@ interface GroupMember {
   borderColor?: string
 }
 
-interface ActiveAxisResults {
+interface AxisResults {
   axis_id: string
   date_generated: string
+  is_active: boolean
   members: GroupMember[]
   labels: {
     top: string
@@ -66,9 +69,9 @@ export default function Home() {
   const router = useRouter()
   const [activeGroup, setActiveGroup] = useState<string | null>(null)
   const [groupName, setGroupName] = useState('')
-  const [activeAxisResults, setActiveAxisResults] = useState<ActiveAxisResults | null>(null)
+  const [historicalAxes, setHistoricalAxes] = useState<AxisResults[]>([])
   const [loading, setLoading] = useState(true)
-  const [axisLoading, setAxisLoading] = useState(false)
+  const [axesLoading, setAxesLoading] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [plusDropdownOpen, setPlusDropdownOpen] = useState(false)
   const [userGroups, setUserGroups] = useState<UserGroup[]>([])
@@ -76,6 +79,71 @@ export default function Home() {
   const [activeGroupCreator, setActiveGroupCreator] = useState<string | null>(null) // Creator ID
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
 
+  // NEW: Comments functionality state
+  const [selectedToken, setSelectedToken] = useState<string | null>(null)
+  const [selectedAxis, setSelectedAxis] = useState<AxisResults | null>(null)
+  const [newComment, setNewComment] = useState('')
+  const commentsEndRef = useRef<HTMLDivElement | null>(null)
+
+  // NEW: Comments hook for the selected token and axis
+  const {
+    comments,
+    loading: commentsLoading,
+    error: commentsError,
+    addComment,
+    deleteComment
+  } = useComments(
+    activeGroup, 
+    selectedToken, 
+    'self', // Always 'self' view for home page historical data
+    selectedAxis?.axis_id || null
+  )
+
+  useEffect(() => {
+    if (commentsEndRef.current) {
+      commentsEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [comments])
+
+  const handleAddComment = async () => {
+    if (!selectedToken || !newComment.trim()) return
+    try {
+      await addComment(newComment.trim())
+      setNewComment('')
+    } catch (err: any) {
+      console.error('Failed to add comment:', err)
+    }
+  }
+
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleAddComment()
+    }
+  }
+
+  // NEW: Handle token click to show comments
+  const handleTokenClick = (e: React.MouseEvent, member: GroupMember, axis: AxisResults) => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    if (selectedToken === member.id && selectedAxis?.axis_id === axis.axis_id) {
+      // Close if clicking the same token
+      setSelectedToken(null)
+      setSelectedAxis(null)
+    } else {
+      // Open comments for this token/axis combination
+      setSelectedToken(member.id)
+      setSelectedAxis(axis)
+    }
+  }
+
+  const getSelectedTokenInfo = () => {
+    if (!selectedToken || !selectedAxis) return null
+    return selectedAxis.members.find(m => m.id === selectedToken)
+  }
+
+  const selectedTokenInfo = getSelectedTokenInfo()
   
   // Fetch user and their groups on mount
   useEffect(() => {
@@ -143,7 +211,7 @@ export default function Home() {
           setActiveGroup(firstGroup.id);
           setGroupName(firstGroup.name);
           setActiveGroupCreator(firstGroup.created_by || null);
-          await fetchActiveAxisResults(firstGroup.id);
+          await fetchHistoricalAxes(firstGroup.id);
         }
 
       } catch (error) {
@@ -156,51 +224,39 @@ export default function Home() {
     fetchUserAndGroups();
   }, [router]);
 
-  // Fetch the active axis and its results for the given group
-  const fetchActiveAxisResults = async (groupId: string) => {
+  // Fetch historical axes and their results for the given group
+  const fetchHistoricalAxes = async (groupId: string) => {
     try {
-      setAxisLoading(true);
-      console.log('🔍 Fetching active axis results for group:', groupId);
+      setAxesLoading(true);
+      console.log('🔍 Fetching historical axes for group:', groupId);
 
-      // 1️⃣ Get the active axis for this group (today's axis)
-      const today = new Date().toISOString().split('T')[0];
-      const { data: activeAxis, error: axisError } = await supabase
+      // 1️⃣ Get all axes for this group (most recent first, limit to 10)
+      // Remove the is_active filter to get ALL axes for this group
+      const { data: axes, error: axesError } = await supabase
         .from('axes')
         .select('*')
         .eq('group_id', groupId)
-        .eq('date_generated', today)
-        .eq('is_active', true)
-        .maybeSingle();
+        .order('created_at', { ascending: false })
+        .limit(10);
 
-      if (axisError) {
-        console.error("Error fetching active axis:", axisError);
-        setActiveAxisResults(null);
+      if (axesError) {
+        console.error("Error fetching axes:", axesError);
+        setHistoricalAxes([]);
         return;
       }
 
-      if (!activeAxis) {
-        console.log('No active axis found for today in this group');
-        setActiveAxisResults(null);
+      if (!axes || axes.length === 0) {
+        console.log('No axes found for this group');
+        setHistoricalAxes([]);
         return;
       }
 
-      console.log('📊 Found active axis:', activeAxis.id);
+      console.log('📊 Found', axes.length, 'axes for group:');
+      axes.forEach((axis, index) => {
+        console.log(`  ${index + 1}. ID: ${axis.id}, Date: ${axis.date_generated}, Active: ${axis.is_active}`);
+      });
 
-      // 2️⃣ Get all self-placements for this specific axis
-      const { data: selfPlacements, error: selfError } = await supabase
-        .from('place_yourself')
-        .select('*')
-        .eq('group_id', groupId)
-        .eq('axis_id', activeAxis.id);
-
-      if (selfError) {
-        console.error("Error fetching self placements:", selfError);
-        return;
-      }
-
-      console.log('👤 Found', selfPlacements?.length || 0, 'self-placements for active axis');
-
-      // 3️⃣ Get group members for color assignment and profiles
+      // 2️⃣ Get group members for color assignment and profiles
       const { data: membersData, error: membersError } = await supabase
         .from('group_members')
         .select('user_id')
@@ -212,8 +268,9 @@ export default function Home() {
       }
       
       const memberUserIds = membersData?.map(member => member.user_id) || [];
+      console.log('👥 Group has', memberUserIds.length, 'members');
       
-      // 4️⃣ Get profiles for all members
+      // 3️⃣ Get profiles for all members
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('id, name, avatar_url')
@@ -224,75 +281,118 @@ export default function Home() {
         return;
       }
 
-      // 5️⃣ Create member color mapping
+      // 4️⃣ Create member color mapping
       const memberColorMap = new Map();
       memberUserIds.forEach((userId, index) => {
         memberColorMap.set(userId, getMemberColor(index));
       });
 
-      // 6️⃣ Process self-placements into display format
-      const members: GroupMember[] = [];
+      // 5️⃣ Process each axis and get its placements
+      const axisResults: AxisResults[] = [];
       
-      if (selfPlacements) {
-        selfPlacements.forEach(placement => {
-          const profile = profiles?.find(p => p.id === placement.user_id);
-          const color = memberColorMap.get(placement.user_id) || getMemberColor(0);
-          
-          members.push({
-            id: placement.user_id,
-            name: profile?.name || placement.first_name || 'Unknown',
-            imageUrl: profile?.avatar_url || `https://i.pravatar.cc/150?img=${Math.floor(Math.random() * 50)}`,
-            position: {
-              x: (placement.position_x - 50) / 50, // Convert 0-100% to -1 to 1
-              y: (placement.position_y - 50) / 50
-            },
-            color: color,
-            borderColor: color
+      for (const axis of axes) {
+        console.log('📋 Processing axis:', axis.id, 'for date:', axis.date_generated);
+
+        // Get self-placements for this specific axis (most recent per user)
+        const { data: selfPlacements, error: selfError } = await supabase
+          .from('place_yourself')
+          .select('*')
+          .eq('group_id', groupId)
+          .eq('axis_id', axis.id)
+          .order('created_at', { ascending: false }); // Get most recent first
+
+        if (selfError) {
+          console.error("Error fetching self placements for axis", axis.id, ":", selfError);
+          continue; // Skip this axis but continue with others
+        }
+
+        console.log(`  └─ Found ${selfPlacements?.length || 0} self-placements for axis ${axis.id}`);
+
+        // Process self-placements into display format
+        const members: GroupMember[] = [];
+        const processedUserIds = new Set<string>(); // Track processed users to avoid duplicates
+        
+        if (selfPlacements) {
+          selfPlacements.forEach(placement => {
+            // Skip if we've already processed this user for this axis
+            if (processedUserIds.has(placement.user_id)) {
+              console.log(`  ⚠️ Skipping duplicate placement for user ${placement.user_id} in axis ${axis.id}`);
+              return;
+            }
+            
+            const profile = profiles?.find(p => p.id === placement.user_id);
+            const color = memberColorMap.get(placement.user_id) || getMemberColor(0);
+            
+            members.push({
+              id: placement.user_id,
+              name: profile?.name || placement.first_name || 'Unknown',
+              imageUrl: profile?.avatar_url || `https://i.pravatar.cc/150?img=${Math.floor(Math.random() * 50)}`,
+              position: {
+                x: (placement.position_x - 50) / 50, // Convert 0-100% to -1 to 1
+                y: (placement.position_y - 50) / 50
+              },
+              color: color,
+              borderColor: color
+            });
+            
+            processedUserIds.add(placement.user_id);
           });
-        });
+        }
+
+        // Create the axis result (include even if no placements for debugging)
+        const axisResult: AxisResults = {
+          axis_id: axis.id,
+          date_generated: axis.date_generated,
+          is_active: axis.is_active,
+          members: members,
+          labels: {
+            top: axis.top_label,
+            bottom: axis.bottom_label,
+            left: axis.left_label,
+            right: axis.right_label,
+            labelColors: {
+              top: 'rgba(251, 207, 232, 0.95)', // Pink
+              bottom: 'rgba(167, 243, 208, 0.95)', // Green  
+              left: 'rgba(221, 214, 254, 0.95)', // Purple
+              right: 'rgba(253, 230, 138, 0.95)' // Yellow
+            }
+          }
+        };
+
+        axisResults.push(axisResult);
+        console.log('✅ Added axis', axis.id, 'with', members.length, 'members to results');
       }
 
-      // 7️⃣ Create the results object
-      const results: ActiveAxisResults = {
-        axis_id: activeAxis.id,
-        date_generated: activeAxis.date_generated,
-        members: members,
-        labels: {
-          top: activeAxis.top_label,
-          bottom: activeAxis.bottom_label,
-          left: activeAxis.left_label,
-          right: activeAxis.right_label,
-          labelColors: {
-            top: 'rgba(251, 207, 232, 0.95)', // Pink
-            bottom: 'rgba(167, 243, 208, 0.95)', // Green  
-            left: 'rgba(221, 214, 254, 0.95)', // Purple
-            right: 'rgba(253, 230, 138, 0.95)' // Yellow
-          }
-        }
-      };
-
-      console.log('✅ Active axis results prepared:', results.members.length, 'members');
-      setActiveAxisResults(results);
+      console.log('📊 Final historical axes to display:', axisResults.length);
+      axisResults.forEach((result, index) => {
+        console.log(`  ${index + 1}. ${result.date_generated} (${result.is_active ? 'Active' : 'Inactive'}) - ${result.members.length} members`);
+      });
+      
+      setHistoricalAxes(axisResults);
       
     } catch (error) {
-      console.error("Error fetching active axis results:", error);
-      setActiveAxisResults(null);
+      console.error("Error fetching historical axes:", error);
+      setHistoricalAxes([]);
     } finally {
-      setAxisLoading(false);
+      setAxesLoading(false);
     }
   };
 
   // Switch to a different group
   const switchGroup = async (groupId: string) => {
-    setAxisLoading(true);
+    setAxesLoading(true);
+    // Close any open comments when switching groups
+    setSelectedToken(null);
+    setSelectedAxis(null);
+    
     const group = userGroups.find(g => g.id === groupId);
     if (group) {
       setActiveGroup(groupId);
       setGroupName(group.name);
       setActiveGroupCreator(group.created_by || null);
-      await fetchActiveAxisResults(groupId);
+      await fetchHistoricalAxes(groupId);
     }
-    setAxisLoading(false);
+    setAxesLoading(false);
   };
 
   const formatDate = (dateString: string): string => {
@@ -334,12 +434,12 @@ export default function Home() {
         setActiveGroup(newGroup.id);
         setGroupName(newGroup.name);
         setActiveGroupCreator(newGroup.created_by || null);
-        fetchActiveAxisResults(newGroup.id);
+        fetchHistoricalAxes(newGroup.id);
       } else {
         // No groups left - clear active group & name
         setActiveGroup(null);
         setGroupName('');
-        setActiveAxisResults(null);
+        setHistoricalAxes([]);
       }
   
       return updatedGroups;
@@ -614,16 +714,16 @@ export default function Home() {
               </button>
             </div>
           </div>
-        ) : axisLoading ? (
-          // Loading active axis
+        ) : axesLoading ? (
+          // Loading historical axes
           <div className="flex flex-col items-center justify-center h-[70vh]">
             <div className="text-2xl font-bold mb-4">Loading {groupName}...</div>
-            <div className="text-lg">Fetching today's axis results...</div>
+            <div className="text-lg">Fetching axes and results...</div>
           </div>
-        ) : !activeAxisResults ? (
-          // No active axis for today
+        ) : historicalAxes.length === 0 ? (
+          // No axes found
           <div className="flex flex-col items-center justify-center h-[70vh]">
-            <div className="text-2xl font-bold mb-4">No activity today!</div>
+            <div className="text-2xl font-bold mb-4">No activity yet!</div>
             <div className="text-lg mb-6">Start by placing yourself to see results for {groupName}.</div>
             <button
               className="px-6 py-3 bg-black text-white rounded-xl font-bold"
@@ -633,35 +733,146 @@ export default function Home() {
             </button>
           </div>
         ) : (
-          // Show active axis results
-          <div className="w-full max-w-[430px] mb-8 flex flex-col items-center">
-            <h2 className="text-2xl font-black mb-2" style={{ fontFamily: 'Arial, sans-serif' }}>
-              {formatDate(activeAxisResults.date_generated)}
-            </h2>
-            <div className="text-sm text-gray-600 mb-4">
-              {activeAxisResults.members.length} member{activeAxisResults.members.length !== 1 ? 's' : ''} placed
-            </div>
-            <div
-              onClick={() => router.push(`/groups/results`)}
-              className="cursor-pointer w-full max-w-[calc(100vw-3rem)] sm:max-w-[calc(100vw-3rem)] md:max-w-[430px]"
-            >
-              <Axis
-                labels={activeAxisResults.labels}
-                labelColors={activeAxisResults.labels.labelColors}
-                size={500}
-                tokenSize={36}
-                tokens={activeAxisResults.members.map((member) => ({
-                  id: member.id,
-                  name: member.name,
-                  x: member.position?.x || 0,
-                  y: member.position?.y || 0,
-                  color: member.color,
-                  borderColor: member.borderColor,
-                  imageUrl: member.imageUrl,
-                }))}
-              />
-            </div>
+          // Show historical axes in scrolling format
+          <div className="w-full max-w-[430px] space-y-8 pb-8">
+            {historicalAxes.map((axis, index) => (
+              <div key={axis.axis_id} className="flex flex-col items-center">
+                <div className="flex items-center gap-3 mb-2">
+                  <h2 className="text-2xl font-black" style={{ fontFamily: 'Arial, sans-serif' }}>
+                    {formatDate(axis.date_generated)}
+                  </h2>
+                  {axis.is_active && (
+                    <span className="bg-green-500 text-white px-2 py-1 rounded-full text-xs font-bold">
+                      ACTIVE
+                    </span>
+                  )}
+                </div>
+                <div className="text-sm text-gray-600 mb-4">
+                  {axis.members.length} member{axis.members.length !== 1 ? 's' : ''} placed
+                </div>
+                <div
+                  className="w-full max-w-[calc(100vw-3rem)] sm:max-w-[calc(100vw-3rem)] md:max-w-[430px] relative"
+                >
+                  <Axis
+                    labels={axis.labels}
+                    labelColors={axis.labels.labelColors}
+                    size={500}
+                    tokenSize={36}
+                    tokens={axis.members
+                      .filter((member, memberIndex, self) => 
+                        // Additional safety check: ensure unique IDs even if duplicates slipped through
+                        memberIndex === self.findIndex(m => m.id === member.id)
+                      )
+                      .map((member) => ({
+                        id: member.id,
+                        name: member.name,
+                        x: member.position?.x || 0,
+                        y: member.position?.y || 0,
+                        color: member.color,
+                        borderColor: member.borderColor,
+                        imageUrl: member.imageUrl,
+                        onClick: (e: React.MouseEvent) => handleTokenClick(e, member, axis), // NEW: Add click handler
+                        isSelected: selectedToken === member.id && selectedAxis?.axis_id === axis.axis_id, // NEW: Show selection
+                      }))
+                    }
+                  />
+                </div>
+                {/* Add separator line between axes except for the last one */}
+                {index < historicalAxes.length - 1 && (
+                  <div className="w-full border-t border-gray-300 mt-8"></div>
+                )}
+              </div>
+            ))}
           </div>
+        )}
+      </div>
+
+      {/* NEW: Comments Panel - Same design as results page */}
+      <div
+        className={`fixed bottom-0 left-0 right-0 z-50 bg-[#FFF5D6] rounded-t-[36px] shadow-2xl transition-transform duration-300 ease-in-out transform ${
+          selectedToken ? 'translate-y-0' : 'translate-y-full'
+        }`}
+        style={{
+          maxHeight: '70vh',
+          minHeight: '320px',
+          boxShadow: '0 -8px 32px rgba(0,0,0,0.12)'
+        }}
+      >
+        {selectedToken && selectedTokenInfo && selectedAxis && (
+          <>
+            <div className="flex items-center justify-between px-4 pt-4 pb-2">
+              <button
+                onClick={() => {
+                  setSelectedToken(null);
+                  setSelectedAxis(null);
+                }}
+                aria-label="Close comments"
+                className="p-1 mr-1"
+              >
+                <ChevronDownIcon className="h-7 w-7 text-black" />
+              </button>
+              <div className="flex-1 flex justify-center items-center">
+                <span className="text-3xl font-black" style={{ fontFamily: 'Arial Black' }}>
+                  comments
+                </span>
+              </div>
+              <div className="ml-2 flex items-center justify-center">
+                <img
+                  src={selectedTokenInfo.imageUrl || selectedTokenInfo.avatar_url}
+                  alt="avatar"
+                  className="w-12 h-12 rounded-full border-4"
+                  style={{ borderColor: selectedTokenInfo.color || '#A855F7' }}
+                />
+              </div>
+            </div>
+
+            {/* Show axis context for comments */}
+            <div className="px-6 pb-2">
+              <div className="text-xs text-gray-600 text-center">
+                Comments for {selectedTokenInfo.name} on {formatDate(selectedAxis.date_generated)}
+              </div>
+            </div>
+
+            <div className="px-6 pb-4 pt-2">
+              <div className="rounded-3xl bg-[#FFFAED] p-4 min-h-[120px] max-h-[200px] overflow-y-auto text-lg font-semibold">
+                {commentsLoading ? (
+                  <div className="text-gray-500 text-center py-4">Loading comments...</div>
+                ) : commentsError ? (
+                  <div className="text-red-500 text-center py-4">Error: {commentsError}</div>
+                ) : comments.length === 0 ? (
+                  <div className="text-gray-500 text-center py-4">
+                    No comments yet for this placement.
+                  </div>
+                ) : (
+                  comments.map(comment => (
+                    <div key={comment.id} className="mb-3 last:mb-0">
+                      <span className="font-bold">{comment.author}:</span> {comment.text}
+                    </div>
+                  ))
+                )}
+                <div ref={commentsEndRef} />
+              </div>
+            </div>
+
+            <div className="px-6 pb-6 flex gap-2">
+              <input
+                type="text"
+                placeholder="Comment on this placement…"
+                className="flex-1 rounded-full bg-[#F3F1E6] border-none px-5 py-3 text-lg placeholder:text-[#C2B68A] focus:outline-none focus:ring-2 focus:ring-[#EADFA7]"
+                value={newComment}
+                onChange={e => setNewComment(e.target.value)}
+                onKeyDown={handleInputKeyDown}
+                disabled={!selectedToken || commentsLoading || !selectedAxis}
+              />
+              <button
+                onClick={handleAddComment}
+                className="bg-[#60A5FA] rounded-full px-6 py-3 font-bold text-white border-2 border-[#3B82F6] hover:bg-[#3B82F6] transition disabled:opacity-50"
+                disabled={!newComment.trim() || commentsLoading || !selectedAxis}
+              >
+                {commentsLoading ? 'Sending...' : 'Send'}
+              </button>
+            </div>
+          </>
         )}
       </div>
 
