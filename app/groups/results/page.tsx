@@ -22,13 +22,19 @@ export default function Results() {
   const [newComment, setNewComment] = useState('')
   const commentsEndRef = useRef<HTMLDivElement | null>(null)
 
+  // UPDATED: Pass axis_id to useComments for axis-specific comments
   const {
     comments,
     loading: commentsLoading,
     error: commentsError,
     addComment,
     deleteComment
-  } = useComments(selectedGroup?.id || null, selectedToken, view)
+  } = useComments(
+    selectedGroup?.id || null, 
+    selectedToken, 
+    view,
+    dailyAxis?.id || null // NEW: Pass the current axis ID
+  )
 
   useEffect(() => {
     if (commentsEndRef.current) {
@@ -126,7 +132,7 @@ export default function Results() {
           <ArrowLeftIcon className="h-6 w-6 text-black" />
         </button>
 
-        {/* Group Info - ENHANCED */}
+        {/* Group Info - ENHANCED with Axis Info */}
         <div className="bg-green-100 border border-green-300 rounded-lg p-4 mb-4 mt-8">
           <h3 className="font-bold text-lg mb-2">Results for:</h3>
           <div className="flex justify-between items-center">
@@ -316,7 +322,7 @@ export default function Results() {
         </div>
       </div>
 
-      {/* Comments Panel - Same as before */}
+      {/* Comments Panel - UPDATED for Axis-specific Comments */}
       <div
         className={`fixed bottom-0 left-0 right-0 z-50 bg-[#FFF5D6] rounded-t-[36px] shadow-2xl transition-transform duration-300 ease-in-out transform ${
           selectedToken ? 'translate-y-0' : 'translate-y-full'
@@ -352,6 +358,13 @@ export default function Results() {
               </div>
             </div>
 
+            {/* ENHANCED: Show axis context for comments */}
+            <div className="px-6 pb-2">
+              <div className="text-xs text-gray-600 text-center">
+                Comments for {selectedTokenInfo.username || selectedTokenInfo.name} on {dailyAxis.date_generated}
+              </div>
+            </div>
+
             <div className="px-6 pb-4 pt-2">
               <div className="rounded-3xl bg-[#FFFAED] p-4 min-h-[120px] max-h-[200px] overflow-y-auto text-lg font-semibold">
                 {commentsLoading ? (
@@ -359,7 +372,9 @@ export default function Results() {
                 ) : commentsError ? (
                   <div className="text-red-500 text-center py-4">Error: {commentsError}</div>
                 ) : comments.length === 0 ? (
-                  <div className="text-gray-500 text-center py-4">No comments yet.</div>
+                  <div className="text-gray-500 text-center py-4">
+                    No comments yet for this placement.
+                  </div>
                 ) : (
                   comments.map(comment => (
                     <div key={comment.id} className="mb-3 last:mb-0">
@@ -374,17 +389,17 @@ export default function Results() {
             <div className="px-6 pb-6 flex gap-2">
               <input
                 type="text"
-                placeholder="Write a comment…"
+                placeholder="Comment on this placement…"
                 className="flex-1 rounded-full bg-[#F3F1E6] border-none px-5 py-3 text-lg placeholder:text-[#C2B68A] focus:outline-none focus:ring-2 focus:ring-[#EADFA7]"
                 value={newComment}
                 onChange={e => setNewComment(e.target.value)}
                 onKeyDown={handleInputKeyDown}
-                disabled={!selectedToken || commentsLoading}
+                disabled={!selectedToken || commentsLoading || !dailyAxis}
               />
               <button
                 onClick={handleAddComment}
                 className="bg-[#60A5FA] rounded-full px-6 py-3 font-bold text-white border-2 border-[#3B82F6] hover:bg-[#3B82F6] transition disabled:opacity-50"
-                disabled={!newComment.trim() || commentsLoading}
+                disabled={!newComment.trim() || commentsLoading || !dailyAxis}
               >
                 {commentsLoading ? 'Sending...' : 'Send'}
               </button>

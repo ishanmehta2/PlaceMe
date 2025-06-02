@@ -1,4 +1,4 @@
-// hooks/useComments.js
+// hooks/useComments.ts
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/auth/supabase'
 
@@ -11,14 +11,29 @@ interface Comment {
   commenter_user_id: string
 }
 
-export const useComments = (groupId: string | null, targetUserId: string | null, viewType: 'self' | 'guessed') => {
+/**
+ * useComments - Updated for Axis-based Comments
+ * ==============================================
+ * 
+ * Now supports comments tied to specific axis placements:
+ * - Comments are per person per axis (not just per person per group)
+ * - Requires axis_id in addition to group_id and target_user_id
+ * - view_type distinguishes between 'self' and 'guessed' placements
+ */
+export const useComments = (
+  groupId: string | null, 
+  targetUserId: string | null, 
+  viewType: 'self' | 'guessed',
+  axisId: string | null = null // NEW: axis_id parameter
+) => {
   const [comments, setComments] = useState<Comment[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Fetch real comments from database
+  // Fetch comments for specific axis placement
   const fetchComments = async () => {
-    if (!groupId || !targetUserId) {
+    if (!groupId || !targetUserId || !axisId) {
+      console.log('🔍 Missing required params for comments:', { groupId, targetUserId, axisId })
       setComments([])
       return
     }
@@ -27,15 +42,16 @@ export const useComments = (groupId: string | null, targetUserId: string | null,
       setLoading(true)
       setError(null)
 
-      console.log('🔍 Fetching comments for:', { groupId, targetUserId, viewType })
+      console.log('🔍 Fetching comments for:', { groupId, targetUserId, viewType, axisId })
 
-      // Step 1: Fetch comments
+      // Step 1: Fetch comments for this specific axis placement
       const { data: commentsData, error: commentsError } = await supabase
         .from('comments')
         .select('*')
         .eq('group_id', groupId)
         .eq('target_user_id', targetUserId)
         .eq('view_type', viewType)
+        .eq('axis_id', axisId) // NEW: Filter by specific axis
         .eq('is_deleted', false)
         .order('created_at', { ascending: true })
 
@@ -47,7 +63,7 @@ export const useComments = (groupId: string | null, targetUserId: string | null,
       console.log('📝 Raw comments from DB:', commentsData)
 
       if (!commentsData || commentsData.length === 0) {
-        console.log('📭 No comments found')
+        console.log('📭 No comments found for this axis placement')
         setComments([])
         return
       }
@@ -95,13 +111,13 @@ export const useComments = (groupId: string | null, targetUserId: string | null,
 
   // Fetch comments when dependencies change
   useEffect(() => {
-    console.log('🔄 useEffect triggered:', { groupId, targetUserId, viewType })
+    console.log('🔄 useEffect triggered:', { groupId, targetUserId, viewType, axisId })
     fetchComments()
-  }, [groupId, targetUserId, viewType])
+  }, [groupId, targetUserId, viewType, axisId])
 
-  // Add comment (keep existing working functionality)
+  // Add comment for specific axis placement
   const addComment = async (commentText: string) => {
-    if (!groupId || !targetUserId || !commentText.trim()) {
+    if (!groupId || !targetUserId || !axisId || !commentText.trim()) {
       throw new Error('Missing required information')
     }
 
@@ -119,6 +135,7 @@ export const useComments = (groupId: string | null, targetUserId: string | null,
         commenter_user_id: user.id,
         target_user_id: targetUserId,
         view_type: viewType,
+        axis_id: axisId, // NEW: Include axis_id
         comment_text: commentText.trim()
       })
 
@@ -130,6 +147,7 @@ export const useComments = (groupId: string | null, targetUserId: string | null,
           commenter_user_id: user.id,
           target_user_id: targetUserId,
           view_type: viewType,
+          axis_id: axisId, // NEW: Save axis_id with comment
           comment_text: commentText.trim(),
           is_deleted: false
         })
@@ -155,10 +173,27 @@ export const useComments = (groupId: string | null, targetUserId: string | null,
     }
   }
 
-  // Placeholder delete function
+  // Delete comment (soft delete)
   const deleteComment = async (commentId: string) => {
-    console.log('🗑️ Delete comment:', commentId)
-    setComments(prev => prev.filter(comment => comment.id !== commentId))
+    try {
+      console.log('🗑️ Soft deleting comment:', commentId)
+      
+      const { error } = await supabase
+        .from('comments')
+        .update({ is_deleted: true })
+        .eq('id', commentId)
+
+      if (error) {
+        console.error('❌ Error deleting comment:', error)
+        throw error
+      }
+
+      // Refresh comments to remove the deleted one
+      await fetchComments()
+    } catch (err: any) {
+      console.error('❌ Error deleting comment:', err)
+      throw new Error(err.message || 'Failed to delete comment')
+    }
   }
 
   return {
