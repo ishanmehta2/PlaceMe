@@ -504,7 +504,7 @@ export default function Home() {
                 className="px-6 py-3 text-base text-left w-full hover:bg-gray-100"
                 onClick={() => {
                   setPlusDropdownOpen(false);
-                  router.push('/groups/group_code');
+                  router.push(`/groups/group_code?groupId=${activeGroup}`);
                 }}
               >
                 Invite
