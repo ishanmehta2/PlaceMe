@@ -345,6 +345,12 @@ export const useGroupWorkflow = () => {
     try {
       console.log('💾 Saving self placement for user:', firstName)
       console.log('📊 Using daily axis:', dailyAxis.id, 'for group:', selectedGroup.name)
+
+      const targetAxisId = sessionStorage.getItem('targetAxisId')
+      if (targetAxisId) {
+        console.log('🎯 Clearing target axis after placement')
+        sessionStorage.removeItem('targetAxisId')
+      }
       
       // Convert position from pixels to percent if needed
       const percentX = typeof position.x === 'number' && position.x > 100 ? (position.x / 300) * 100 : position.x

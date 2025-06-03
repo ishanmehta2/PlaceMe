@@ -118,7 +118,7 @@ export default function CreateGroup() {
           group_id: newGroup.id,
           user_id: userId,
           role: 'creator', // Mark as creator
-          created_at: new Date().toISOString()
+          joined_at: new Date().toISOString()
         })
       
       if (memberError) {

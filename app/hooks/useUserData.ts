@@ -99,7 +99,7 @@ export function useUserData(): UserData {
             group_id: groupId,
             user_id: currentUserId,
             role: 'member',
-            created_at: new Date().toISOString()
+            joined_at: new Date().toISOString()
           })
       }
     } else {
@@ -137,7 +137,7 @@ export function useUserData(): UserData {
             group_id: group.id,
             user_id: currentUserId,
             role: 'creator',
-            created_at: new Date().toISOString()
+            joined_at: new Date().toISOString()
           })
       }
     } else {
@@ -151,7 +151,7 @@ export function useUserData(): UserData {
       .from('group_members')
       .select('group_id')
       .eq('user_id', currentUserId)
-      .order('created_at', { ascending: false })
+      .order('joined_at', { ascending: false })
       .limit(1)
     
     if (groupMemberships?.length) {

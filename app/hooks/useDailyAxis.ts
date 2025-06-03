@@ -66,6 +66,33 @@ export const useDailyAxis = (groupId: string | null) => {
     try {
       setLoading(true)
       setError(null)
+  
+      // NEW: Check if we're targeting a specific axis
+      const targetAxisId = sessionStorage.getItem('targetAxisId')
+      
+      if (targetAxisId) {
+        console.log('🎯 Loading specific target axis:', targetAxisId)
+        
+        // Load the specific axis
+        const { data: targetAxis, error: targetError } = await supabase
+          .from('axes')
+          .select('*')
+          .eq('id', targetAxisId)
+          .eq('group_id', grpId)
+          .single()
+  
+        if (targetError) {
+          console.error('❌ Error loading target axis:', targetError)
+          // Clear the target and fall back to normal logic
+          sessionStorage.removeItem('targetAxisId')
+        } else {
+          console.log('✅ Successfully loaded target axis:', targetAxis.id)
+          const processedAxis = processAxisFromDatabase(targetAxis)
+          setDailyAxis(processedAxis)
+          setLoading(false)
+          return
+        }
+      }
 
       const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD format
 
