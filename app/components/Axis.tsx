@@ -47,13 +47,20 @@ export default function Axis({
     return () => window.removeEventListener('resize', updateSize)
   }, [maxSize])
 
+  // Convert percentage positions to pixel positions
+  const scaledTokens = tokens.map(token => ({
+    ...token,
+    x: token.x * (currentSize - tokenSize) + tokenSize/2, // Convert from [0,1] to [0,size-tokenSize]
+    y: token.y * (currentSize - tokenSize) + tokenSize/2,
+  }))
+
   // Padding from edge for labels
   const pad = Math.round(currentSize * 0.06)
   const baseLabelStyle = {
     borderRadius: '8px',
     boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
     padding: '4px 12px',
-    fontSize: Math.max(12, Math.round(currentSize * 0.07)), // 7% of size, min 12px
+    fontSize: Math.max(10, Math.round(currentSize * 0.05)), // 5% of size, min 10px
     fontWeight: 800,
     pointerEvents: 'none' as const,
     userSelect: 'none' as const,
@@ -61,14 +68,29 @@ export default function Axis({
     whiteSpace: 'nowrap' as const,
     color: 'black',
     background: 'rgba(255,255,255,0.95)',
+    overflow: 'hidden',
+    maxWidth: '100%',
   }
 
-  // Container size includes space for labels
-  const containerSize = currentSize + 80 // Add extra space for labels
+  // Calculate font size based on text length and container size
+  const calculateFontSize = (text: string, isVertical: boolean = false) => {
+    const baseSize = Math.max(10, Math.round(currentSize * 0.05));
+    // Calculate available space - account for padding and container size
+    const availableSpace = currentSize * 0.8; // 60% of container size
+    const avgCharWidth = baseSize * 0.6; // Approximate width of a character
+    const maxChars = Math.floor(availableSpace / avgCharWidth);
+    const length = text.length;
+    
+    if (length <= maxChars) return baseSize;
+    
+    // Reduce font size proportionally to text length
+    const reductionFactor = Math.min(1, maxChars / length);
+    return Math.max(10, Math.round(baseSize * reductionFactor));
+  }
 
   return (
-    <div className="relative w-full flex justify-center" style={{ height: containerSize }}>
-      <div className="relative" style={{ width: containerSize, height: containerSize }}>
+    <div className="relative w-full flex justify-center" style={{ height: currentSize }}>
+      <div className="relative" style={{ width: currentSize, height: currentSize }}>
         {/* Grid container */}
         <div
           className="absolute left-1/2 top-1/2"
@@ -103,7 +125,7 @@ export default function Axis({
           />
           
           {/* Tokens */}
-          {tokens.map((token) => (
+          {scaledTokens.map((token) => (
             <Token
               key={token.id}
               {...token}
@@ -123,6 +145,7 @@ export default function Axis({
               top: 0,
               transform: 'translateX(-50%)',
               background: labelColors.top || 'rgba(255,255,255,0.85)',
+              fontSize: calculateFontSize(labels.top),
               zIndex: 2,
             }}
           >
@@ -136,6 +159,7 @@ export default function Axis({
               bottom: 0,
               transform: 'translateX(-50%)',
               background: labelColors.bottom || 'rgba(255,255,255,0.85)',
+              fontSize: calculateFontSize(labels.bottom),
               zIndex: 2,
             }}
           >
@@ -152,6 +176,8 @@ export default function Axis({
               background: labelColors.left || 'rgba(255,255,255,0.85)',
               transformOrigin: 'center',
               transform: 'translateY(-50%) rotate(180deg)',
+              padding: '12px 4px',
+              fontSize: calculateFontSize(labels.left, true),
               zIndex: 2,
             }}
           >
@@ -167,6 +193,8 @@ export default function Axis({
               writingMode: 'vertical-lr',
               textOrientation: 'mixed',
               background: labelColors.right || 'rgba(255,255,255,0.85)',
+              padding: '12px 4px',
+              fontSize: calculateFontSize(labels.right, true),
               zIndex: 2,
             }}
           >

@@ -358,8 +358,8 @@ export default function Home() {
                   name: profile?.name || placement.first_name || 'Unknown',
                   imageUrl: profile?.avatar_url || `https://i.pravatar.cc/150?img=${Math.floor(Math.random() * 50)}`,
                   position: {
-                    x: (placement.position_x - 50) / 50, // Convert 0-100% to -1 to 1
-                    y: (placement.position_y - 50) / 50
+                    x: placement.position_x / 100, // Convert 0-100% to 0-1
+                    y: placement.position_y / 100
                   },
                   color: color,
                   borderColor: color
@@ -727,7 +727,7 @@ export default function Home() {
   
       {/* Main Content */}
       <div
-        className={`flex flex-col items-center w-full transition-all duration-300 px-6 sm:px-6 md:px-8 ${
+        className={`flex flex-col items-center w-full transition-all duration-300 px-6 sm:px-8 md:px-12 ${
           menuOpen ? 'pointer-events-none select-none' : ''
         }`}
       >
@@ -771,7 +771,7 @@ export default function Home() {
           </div>
         ) : (
           // Show historical axes in scrolling format
-          <div className="w-full max-w-[430px] space-y-8 pb-8">
+          <div className="w-full max-w-[430px] space-y-4 pb-4">
             {historicalAxes.map((axis, index) => (
               <div key={axis.axis_id} className="flex flex-col items-center">
                 <div className="flex items-center gap-3 mb-2">
@@ -790,7 +790,7 @@ export default function Home() {
                   // LOCKED STATE - Show lock design
                   <div 
                     onClick={() => handleLockedAxisClick(axis)}
-                    className="cursor-pointer w-full max-w-[calc(100vw-3rem)] sm:max-w-[calc(100vw-3rem)] md:max-w-[430px] hover:opacity-80 transition-opacity"
+                    className="cursor-pointer w-full max-w-[calc(100vw-3rem)] sm:max-w-[calc(100vw-3rem)] md:max-w-[430px] hover:opacity-80 transition-opacity p-4"
                   >
                     <div className="relative bg-gray-100 border-2 border-black rounded-3xl p-8 min-h-[300px] flex flex-col items-center justify-center">
                       {/* Grayed out axis background */}
@@ -812,34 +812,32 @@ export default function Home() {
                 ) : (
                   // UNLOCKED STATE - Show normal axis
                   <>
-                    <div className="text-sm text-gray-600 mb-4">
+                    <div className="text-sm text-gray-600 mb-2">
                       {axis.members.length} member{axis.members.length !== 1 ? 's' : ''} placed
                     </div>
-                    <div className="w-full max-w-[calc(100vw-3rem)] sm:max-w-[calc(100vw-3rem)] md:max-w-[430px] relative">
-                      <Axis
-                        labels={axis.labels}
-                        labelColors={axis.labels.labelColors}
-                        size={500}
-                        tokenSize={36}
-                        tokens={axis.members
-                          .filter((member, memberIndex, self) => 
-                            // Additional safety check: ensure unique IDs even if duplicates slipped through
-                            memberIndex === self.findIndex(m => m.id === member.id)
-                          )
-                          .map((member) => ({
-                            id: member.id,
-                            name: member.name,
-                            x: member.position?.x || 0,
-                            y: member.position?.y || 0,
-                            color: member.color,
-                            borderColor: member.borderColor,
-                            imageUrl: member.imageUrl,
-                            onClick: (e: React.MouseEvent) => handleTokenClick(e, member, axis),
-                            isSelected: selectedToken === member.id && selectedAxis?.axis_id === axis.axis_id,
-                          }))
-                        }
-                      />
-                    </div>
+                    <Axis
+                      labels={axis.labels}
+                      labelColors={axis.labels.labelColors}
+                      size={500}
+                      tokenSize={36}
+                      tokens={axis.members
+                        .filter((member, memberIndex, self) => 
+                          // Additional safety check: ensure unique IDs even if duplicates slipped through
+                          memberIndex === self.findIndex(m => m.id === member.id)
+                        )
+                        .map((member) => ({
+                          id: member.id,
+                          name: member.name,
+                          x: member.position?.x || 0,
+                          y: member.position?.y || 0,
+                          color: member.color,
+                          borderColor: member.borderColor,
+                          imageUrl: member.imageUrl,
+                          onClick: (e: React.MouseEvent) => handleTokenClick(e, member, axis),
+                          isSelected: selectedToken === member.id && selectedAxis?.axis_id === axis.axis_id,
+                        }))
+                      }
+                    />
                   </>
                 )}
                 
@@ -896,6 +894,7 @@ export default function Home() {
             <div className="px-6 pb-2">
               <div className="text-xs text-gray-600 text-center">
                 Comments for {selectedTokenInfo.name} on {formatDate(selectedAxis.date_generated)}
+                
               </div>
             </div>
 

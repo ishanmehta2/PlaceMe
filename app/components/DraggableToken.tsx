@@ -43,8 +43,8 @@ export function DraggableToken({ id, position, isDragging, userAvatar, firstName
         position: 'absolute',
         left: x,
         top: y,
-        width: TOKEN_SIZE,
-        height: TOKEN_SIZE,
+        width: TOKEN_SIZE + 10,
+        // height: TOKEN_SIZE,
         zIndex: isDragging ? 10 : 1,
         cursor: 'grab',
         transition: isDragging ? 'none' : 'all 0.2s ease',
@@ -52,8 +52,8 @@ export function DraggableToken({ id, position, isDragging, userAvatar, firstName
         filter: isDragging ? DRAG_SHADOW : 'none',
         touchAction: 'none', // Prevent default touch actions
         transformOrigin: 'center center', // Ensure scaling happens from center
-        marginLeft: `-${TOKEN_SIZE/2}px`, // Center the token on its position
-        marginTop: `-${TOKEN_SIZE/2}px`, // Center the token on its position
+        // marginLeft: `${TOKEN_SIZE/2}px`, // Center the token on its position
+        // marginTop: `${TOKEN_SIZE/2}px`, // Center the token on its position
       }}
     >
       <Token

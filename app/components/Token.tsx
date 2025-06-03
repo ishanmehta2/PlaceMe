@@ -4,12 +4,12 @@ import React from 'react'
 export interface TokenProps {
   id: string
   name: string
-  x: number // -1 to 1
-  y: number // -1 to 1
+  x: number // pixel position
+  y: number // pixel position
   color?: string
   size?: number
   showTooltip?: boolean
-  onClick?: () => void
+  onClick?: (e: React.MouseEvent) => void
   className?: string
   imageUrl?: string
   isSelected?: boolean
@@ -28,10 +28,6 @@ export default function Token({
   imageUrl,
   isSelected = false,
 }: TokenProps) {
-  const position = {
-    left: `${50 + x * 45}%`,
-    top: `${50 - y * 45}%`,
-  }
   const border = Math.max(4, Math.round(size * 0.13)) // 13% of size, min 4px
   const fontSize = Math.max(14, Math.round(size * 0.36)) // 36% of size, min 14px
   const imageSize = size - border * 2
@@ -39,7 +35,12 @@ export default function Token({
   return (
     <div
       className={`absolute flex flex-col items-center ${className}`}
-      style={{ ...position, zIndex: 2 }}
+      style={{ 
+        left: x,
+        top: y,
+        zIndex: 2,
+        // transform: 'translate(-50%, -50%)', // Center the token on its position
+      }}
     >
       <div
         className="flex items-center justify-center"
