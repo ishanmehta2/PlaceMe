@@ -1,5 +1,6 @@
 import { useDraggable } from '@dnd-kit/core'
 import Token from './Token'
+import { useRef } from 'react'
 
 interface Position {
   x: number
@@ -16,6 +17,7 @@ interface DraggableTokenProps {
 }
 
 const TOKEN_SIZE = 35
+const GRID_SIZE = 300
 const DRAG_SCALE = 1.2
 const DRAG_SHADOW = 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.2))'
 const UNPLACED_ANIMATION = 'pulse 2s infinite'
@@ -24,16 +26,14 @@ export function DraggableToken({ id, position, isDragging, userAvatar, firstName
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id,
   })
+  const textRef = useRef<HTMLDivElement>(null)
 
-  // Calculate position with drag offset
-  let x = position.x
-  let y = position.y
+  // Convert normalized position to pixels and add drag offset
+  let x = position.x * GRID_SIZE
+  let y = position.y * GRID_SIZE
   if (transform) {
     x += transform.x
     y += transform.y
-    // Clamp to grid bounds, accounting for token size
-    x = Math.max(0, Math.min(x, 300 - TOKEN_SIZE))
-    y = Math.max(0, Math.min(y, 300 - TOKEN_SIZE))
   }
 
   return (
@@ -45,18 +45,16 @@ export function DraggableToken({ id, position, isDragging, userAvatar, firstName
         position: 'absolute',
         left: x,
         top: y,
-        width: TOKEN_SIZE + 10,
-        // height: TOKEN_SIZE,
+        width: TOKEN_SIZE,
+        height: TOKEN_SIZE,
         zIndex: isDragging ? 10 : 1,
         cursor: 'grab',
         transition: isDragging ? 'none' : 'all 0.2s ease',
         transform: isDragging ? `scale(${DRAG_SCALE})` : 'scale(1)',
         filter: isDragging ? DRAG_SHADOW : 'none',
-        touchAction: 'none', // Prevent default touch actions
-        transformOrigin: 'center center', // Ensure scaling happens from center
+        touchAction: 'none',
+        transformOrigin: 'center center',
         animation: isUnplaced ? UNPLACED_ANIMATION : 'none',
-        // marginLeft: `${TOKEN_SIZE/2}px`, // Center the token on its position
-        // marginTop: `${TOKEN_SIZE/2}px`, // Center the token on its position
       }}
     >
       <Token
@@ -68,7 +66,25 @@ export function DraggableToken({ id, position, isDragging, userAvatar, firstName
         size={TOKEN_SIZE}
         imageUrl={userAvatar}
         isUnplaced={isUnplaced}
+        hideName={true}
       />
+      <div
+        ref={textRef}
+        className="mt-1 text-center whitespace-nowrap"
+        style={{
+          position: 'absolute',
+          left: '50%',
+          top: '100%',
+          transform: 'translateX(-50%)',
+          fontSize: '14px',
+          fontWeight: 600,
+          color: isUnplaced ? '#6B7280' : '#222',
+          textShadow: '0 1px 2px #fff',
+          pointerEvents: 'none',
+        }}
+      >
+        {firstName}
+      </div>
     </div>
   )
 } 

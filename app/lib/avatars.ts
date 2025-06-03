@@ -12,8 +12,8 @@ const MONSTERS = [
 
 // Function to get a consistent monster for a user ID or name
 function getUserMonster(idOrName: string): string {
-  // Convert to lowercase and take first three letters
-  const input = idOrName.toLowerCase().slice(0, 3)
+  // Convert to lowercase and take last three letters
+  const input = idOrName.toLowerCase().slice(-3)
   
   // Simple hash function to convert string to number
   let hash = 0;

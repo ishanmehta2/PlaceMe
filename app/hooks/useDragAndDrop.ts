@@ -46,34 +46,39 @@ export function useDragAndDrop(initialPositions: TokenPositions): DragAndDropSta
 
   // Handle drag end
   const handleDragEnd = (event: any) => {
-    const { active, delta } = event
-    if (delta && gridRef.current) {
+    const { active, over } = event
+    if (gridRef.current) {
       // Get the grid container (the white background div)
       const gridContainer = gridRef.current.querySelector('div[style*="background-color: white"]')
+   
       if (gridContainer) {
         const gridRect = gridContainer.getBoundingClientRect()
-        const containerRect = gridRef.current.getBoundingClientRect()
         
-        // Calculate the offset between the container and the grid
-        const offsetX = gridRect.left - containerRect.left
-        const offsetY = gridRect.top - containerRect.top
+        // Get the current position of the token (in normalized coordinates)
+        const currentPosition = positions[active.id]
         
-        setPositions(prev => {
-          const tokenId = active.id
-          const currentPosition = prev[tokenId]
-          
-          let newX = currentPosition.x + delta.x
-          let newY = currentPosition.y + delta.y
-          
-          // Clamp to grid bounds, accounting for token size and offset
-          newX = Math.max(0, Math.min(newX, GRID_SIZE - TOKEN_SIZE))
-          newY = Math.max(0, Math.min(newY, GRID_SIZE - TOKEN_SIZE))
-          
-          return {
-            ...prev,
-            [tokenId]: { x: newX, y: newY }
-          }
-        })
+        // Get the final transform from the drag event (in pixels)
+        const finalTransform = event.delta
+        
+        // Convert drag delta to normalized coordinates
+        const normalizedDeltaX = finalTransform.x / GRID_SIZE
+        const normalizedDeltaY = finalTransform.y / GRID_SIZE
+        
+        // Calculate new position in normalized coordinates
+        const newNormalizedX = currentPosition.x + normalizedDeltaX
+        const newNormalizedY = currentPosition.y + normalizedDeltaY
+        
+        // Calculate the circle's size in normalized coordinates
+        const circleSize = TOKEN_SIZE / GRID_SIZE
+        
+        // Clamp the position to ensure the circle stays within bounds
+        const clampedX = Math.max(0, Math.min(1 - circleSize, newNormalizedX))
+        const clampedY = Math.max(0, Math.min(1 - circleSize, newNormalizedY))
+        
+        setPositions(prev => ({
+          ...prev,
+          [active.id]: { x: clampedX, y: clampedY }
+        }))
       }
     }
     setActiveId(null)

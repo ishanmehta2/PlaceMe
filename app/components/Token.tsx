@@ -2,29 +2,6 @@
 import React from 'react'
 import { getUserAvatar } from '../lib/avatars'
 
-// Monster URLs for consistent assignment
-const MONSTERS = [
-  'https://api.dicebear.com/7.x/bottts/svg?seed=monster1', // Robot monster
-  'https://api.dicebear.com/7.x/bottts/svg?seed=monster2', // Alien monster
-  'https://api.dicebear.com/7.x/bottts/svg?seed=monster3', // Ghost monster
-  'https://api.dicebear.com/7.x/bottts/svg?seed=monster4', // Dragon monster
-  'https://api.dicebear.com/7.x/bottts/svg?seed=monster5', // Dinosaur monster
-  'https://api.dicebear.com/7.x/bottts/svg?seed=monster6', // Octopus monster
-  'https://api.dicebear.com/7.x/bottts/svg?seed=monster7', // Spider monster
-  'https://api.dicebear.com/7.x/bottts/svg?seed=monster8', // Slime monster
-]
-
-// Function to get a consistent monster for a user ID
-export function getUserMonster(userId: string): string {
-  // Simple hash function to convert string to number
-  let hash = 0;
-  for (let i = 0; i < userId.length; i++) {
-    hash = userId.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  // Use the hash to select a monster
-  return MONSTERS[Math.abs(hash) % MONSTERS.length];
-}
-
 export interface TokenProps {
   id: string
   name: string
@@ -38,6 +15,7 @@ export interface TokenProps {
   isSelected?: boolean
   isUnplaced?: boolean
   imageUrl?: string | null
+  hideName?: boolean
 }
 
 export default function Token({
@@ -53,6 +31,7 @@ export default function Token({
   isSelected = false,
   isUnplaced = false,
   imageUrl = null,
+  hideName = false,
 }: TokenProps) {
   const border = Math.max(4, Math.round(size * 0.13)) // 13% of size, min 4px
   const fontSize = Math.max(14, Math.round(size * 0.36)) // 36% of size, min 14px
@@ -105,18 +84,20 @@ export default function Token({
           }}
         />
       </div>
-      <div
-        className="mt-1 text-center whitespace-nowrap"
-        style={{ 
-          fontWeight: isSelected ? 700 : 600, 
-          fontSize, 
-          color: isUnplaced ? '#6B7280' : '#222', 
-          textShadow: '0 1px 2px #fff',
-          transition: 'all 0.3s ease-in-out',
-        }}
-      >
-        {name}
-      </div>
+      {(!hideName && name) && (
+        <div
+          className="mt-1 text-center whitespace-nowrap"
+          style={{ 
+            fontWeight: isSelected ? 700 : 600, 
+            fontSize, 
+            color: isUnplaced ? '#6B7280' : '#222', 
+            textShadow: '0 1px 2px #fff',
+            transition: 'all 0.3s ease-in-out',
+          }}
+        >
+          {name}
+        </div>
+      )}
     </div>
   )
 } 

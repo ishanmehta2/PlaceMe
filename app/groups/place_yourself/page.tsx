@@ -34,11 +34,11 @@ export default function PlaceYourself() {
   const [showPlacementError, setShowPlacementError] = useState(false)
   const [hasMovedToken, setHasMovedToken] = useState(false)
   
-  // Start at center of grid, accounting for token size
+  // Start at center of grid in normalized coordinates (0-1)
   const initialPositions = { 
     'user-token': { 
-      x: (AXIS_SIZE - TOKEN_SIZE) / 2, 
-      y: (AXIS_SIZE - TOKEN_SIZE) / 2 
+      x: 0.5, // Center horizontally
+      y: 0.5  // Center vertically
     }
   }
   

@@ -76,12 +76,12 @@ const calculateInitialPositions = (memberCount: number): Position[] => {
   
   for (let i = 0; i < memberCount; i++) {
     const angle = (i * 2 * Math.PI) / memberCount
-    const radius = 300 * 0.3 // 30% from center (assuming 300px grid size)
-    const centerX = 150 // Half of 300
-    const centerY = 150 // Half of 300
+    const radius = 0.2 // 30% from center in normalized coordinates
+    const centerX = 0.3 // Center in normalized coordinates
+    const centerY = 0.4 // Center in normalized coordinates
     
-    const x = Math.max(18, Math.min(282, centerX + Math.cos(angle) * radius))
-    const y = Math.max(18, Math.min(282, centerY + Math.sin(angle) * radius))
+    const x = Math.max(0.06, Math.min(0.94, centerX + Math.cos(angle) * radius))
+    const y = Math.max(0.06, Math.min(0.94, centerY + Math.sin(angle) * radius))
     
     positions.push({ x, y })
   }
@@ -301,23 +301,22 @@ export const useGroupWorkflow = () => {
   }
 
   // Handle position changes for place others
-  // Positions will be recieved as a value 0 to 300-TOKEN_SIZE
-  // We need to convert this to a value 0 to 1
+  // Positions are received in normalized coordinates (0-1)
   const handlePositionChange = async (tokenId: string, position: Position) => {
     try {
-      // Convert position from pixels to percentage
-      const percentX = position.x / (300 - 35)
-      const percentY = position.y / (300 - 35)
+      // Ensure position is in normalized coordinates (0-1)
+      const normalizedX = Math.max(0, Math.min(position.x, 1))
+      const normalizedY = Math.max(0, Math.min(position.y, 1))
       
       setTokens(prevTokens => 
         prevTokens.map(token => 
           token.id === tokenId 
-            ? { ...token, position: { x: percentX, y: percentY } }
+            ? { ...token, position: { x: normalizedX, y: normalizedY } }
             : token
         )
       )
       
-      console.log(`📍 Updated position for ${tokenId}:`, { x: percentX, y: percentY })
+      console.log(`📍 Updated position for ${tokenId}:`, { x: normalizedX, y: normalizedY })
     } catch (err: any) {
       console.error('Error updating position:', err)
       setError(err.message || 'Failed to update position')
@@ -346,9 +345,13 @@ export const useGroupWorkflow = () => {
       console.log('💾 Saving self placement for user:', firstName)
       console.log('📊 Using daily axis:', dailyAxis.id, 'for group:', selectedGroup.name)
       
-      // Convert position from pixels to percent if needed
-      const percentX = typeof position.x === 'number' && position.x > 100 ? (position.x / 300) * 100 : position.x
-      const percentY = typeof position.y === 'number' && position.y > 100 ? (position.y / 300) * 100 : position.y
+      // Ensure position is in normalized coordinates (0-1)
+      const normalizedX = Math.max(0, Math.min(1, position.x))
+      const normalizedY = Math.max(0, Math.min(1, position.y))
+      
+      // Convert to percentage for database storage
+      const percentX = normalizedX * 100
+      const percentY = normalizedY * 100
       
       // Get today's date for consistency
       const today = new Date().toISOString().split('T')[0]
@@ -436,13 +439,17 @@ export const useGroupWorkflow = () => {
     }
     
     try {
-      console.log('💾 Saving others placements for', tokens.length, 'group members')
-      console.log('📊 Using daily axis:', dailyAxis.id, 'for group:', selectedGroup.name)
+      console.log('💾 Starting to save others placements...')
+      console.log('📊 Group:', selectedGroup.name, '(ID:', selectedGroup.id, ')')
+      console.log('👤 Current user:', currentUserId)
+      console.log('🎯 Daily axis:', dailyAxis.id)
+      console.log('📍 Number of tokens to save:', tokens.length)
       
       // Get today's date for consistency
       const today = new Date().toISOString().split('T')[0]
       
       // Clear existing placements by this user for this axis to avoid duplicates
+      console.log('🧹 Clearing existing placements...')
       const { error: deleteError } = await supabase
         .from('place_others')
         .delete()
@@ -450,30 +457,41 @@ export const useGroupWorkflow = () => {
         .eq('axis_id', dailyAxis.id)
 
       if (deleteError) {
-        console.warn('⚠️ Could not clear existing placements (continuing anyway):', deleteError)
+        console.warn('⚠️ Could not clear existing placements:', deleteError)
+      } else {
+        console.log('✅ Successfully cleared existing placements')
       }
 
       // Insert new placements
-      const placementsToInsert = tokens.map(token => ({
-        placer_user_id: currentUserId,
-        placed_user_id: token.id,
-        group_id: selectedGroup.id,
-        group_code: selectedGroup.invite_code,
-        username: token.firstName,
-        first_name: token.firstName,
-        position_x: token.position.x * 100, // Convert from 0-1 to 0-100
-        position_y: token.position.y * 100, // Convert from 0-1 to 0-100
-        top_label: dailyAxis.labels.top,
-        bottom_label: dailyAxis.labels.bottom,
-        left_label: dailyAxis.labels.left,
-        right_label: dailyAxis.labels.right,
-        axis_id: dailyAxis.id,
-        vertical_axis_pair_id: dailyAxis.vertical_axis_pair_id,
-        horizontal_axis_pair_id: dailyAxis.horizontal_axis_pair_id,
-        date_placed: today
-      }))
+      const placementsToInsert = tokens.map(token => {
+        const position = {
+          x: token.position.x * 100, // Convert from 0-1 to 0-100
+          y: token.position.y * 100  // Convert from 0-1 to 0-100
+        }
+        console.log(`📍 Token ${token.firstName}:`, position)
+        
+        return {
+          placer_user_id: currentUserId,
+          placed_user_id: token.id,
+          group_id: selectedGroup.id,
+          group_code: selectedGroup.invite_code,
+          username: token.firstName,
+          first_name: token.firstName,
+          position_x: position.x,
+          position_y: position.y,
+          top_label: dailyAxis.labels.top,
+          bottom_label: dailyAxis.labels.bottom,
+          left_label: dailyAxis.labels.left,
+          right_label: dailyAxis.labels.right,
+          axis_id: dailyAxis.id,
+          vertical_axis_pair_id: dailyAxis.vertical_axis_pair_id,
+          horizontal_axis_pair_id: dailyAxis.horizontal_axis_pair_id,
+          date_placed: today
+        }
+      })
 
       if (placementsToInsert.length > 0) {
+        console.log('💾 Inserting', placementsToInsert.length, 'new placements...')
         const { error: insertError } = await supabase
           .from('place_others')
           .insert(placementsToInsert)
@@ -483,13 +501,13 @@ export const useGroupWorkflow = () => {
           throw insertError
         }
         
-        console.log('✅ Successfully saved', placementsToInsert.length, 'others placements')
+        console.log('✅ Successfully saved all placements')
       } else {
         console.log('ℹ️ No other members to place')
       }
       
     } catch (err: any) {
-      console.error('Error saving others placements:', err)
+      console.error('❌ Error in saveOthersPlacement:', err)
       throw new Error(err.message || 'Failed to save placements')
     }
   }

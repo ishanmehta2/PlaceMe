@@ -62,7 +62,9 @@ export function TokenGrid({ tokens, onPositionChange, onPlacementStatusChange, a
     const hasUnplacedTokens = tokens.some(token => {
       const currentPos = positions[token.id]
       const initialPos = initialPositions[token.id]
-      return currentPos.x === initialPos.x && currentPos.y === initialPos.y
+      // A token is considered placed if it has moved from its initial position
+      const isPlaced = Math.abs(currentPos.x - initialPos.x) > 0.01 || Math.abs(currentPos.y - initialPos.y) > 0.01
+      return !isPlaced
     })
     onPlacementStatusChange?.(hasUnplacedTokens)
   }, [positions, tokens, initialPositions, onPlacementStatusChange])
@@ -92,7 +94,9 @@ export function TokenGrid({ tokens, onPositionChange, onPlacementStatusChange, a
           {tokens.map(token => {
             const currentPos = positions[token.id]
             const initialPos = initialPositions[token.id]
-            const isUnplaced = currentPos.x === initialPos.x && currentPos.y === initialPos.y
+            // A token is considered placed if it has moved from its initial position
+            const isPlaced = Math.abs(currentPos.x - initialPos.x) > 0.01 || Math.abs(currentPos.y - initialPos.y) > 0.01
+            const isUnplaced = !isPlaced
 
             return (
               <DraggableToken
