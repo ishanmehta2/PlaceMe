@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import Image from 'next/image'
 import { supabase } from '../../../lib/auth/supabase'
+import { getUserAvatar } from '../../lib/avatars'
 
 // Define the axes labels
 const AXES_LABELS = {
@@ -249,17 +249,11 @@ export default function PlaceYourselfConfirm() {
               }}
             >
               <div className="w-16 h-16 rounded-full bg-blue-500 flex items-center justify-center border-2 border-white overflow-hidden">
-                {userAvatar ? (
-                  <Image 
-                    src={userAvatar} 
-                    alt={userName}
-                    width={60}
-                    height={60}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="text-white text-2xl font-bold">{firstName.charAt(0)}</div>
-                )}
+                <img 
+                  src={getUserAvatar(userId || '', userAvatar)}
+                  alt={userName}
+                  className="w-full h-full object-cover"
+                />
               </div>
               <div className="mt-1 font-bold text-sm">
                 {firstName}

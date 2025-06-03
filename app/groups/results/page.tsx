@@ -7,19 +7,45 @@ import { useComments } from '../../hooks/useComments'
 import Axis from '../../components/Axis'
 import Token from '../../components/Token'
 import { ArrowLeftIcon, ChevronDownIcon } from '@heroicons/react/24/solid'
+import { getUserAvatar } from '../../lib/avatars'
 
 // Constants
 const AXIS_SIZE = 300
 const TOKEN_SIZE = 35
 const GUESS_TOKEN_SIZE = 25
 
+// Color generation constants
+const COLORS = [
+  '#FF6B6B', // red
+  '#4ECDC4', // teal
+  '#45B7D1', // blue
+  '#96CEB4', // mint
+  '#FFEEAD', // yellow
+  '#D4A5A5', // pink
+  '#9B59B6', // purple
+  '#3498DB', // light blue
+  '#E67E22', // orange
+  '#2ECC71', // green
+]
+
+// Function to generate a consistent color for a user ID
+function getUserColor(userId: string): string {
+  // Simple hash function to convert string to number
+  let hash = 0;
+  for (let i = 0; i < userId.length; i++) {
+    hash = userId.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  // Use the hash to select a color
+  return COLORS[Math.abs(hash) % COLORS.length];
+}
+
 export default function Results() {
   const router = useRouter()
-  // Updated: useResults now returns dailyAxis directly
   const { loading, error, selectedGroup, dailyAxis, results } = useResults()
   const [view, setView] = useState<'self' | 'guessed'>('self')
   const [selectedToken, setSelectedToken] = useState<string | null>(null)
   const [newComment, setNewComment] = useState('')
+  const [isTransitioning, setIsTransitioning] = useState(false)
   const commentsEndRef = useRef<HTMLDivElement | null>(null)
 
   // UPDATED: Pass axis_id to useComments for axis-specific comments
@@ -67,6 +93,17 @@ export default function Results() {
   }
 
   const selectedTokenInfo = getSelectedTokenInfo()
+
+  const handleViewChange = (newView: 'self' | 'guessed') => {
+    if (newView === view) return
+    setIsTransitioning(true)
+    setSelectedToken(null)
+    setView(newView)
+    // Reset transition state after animation completes
+    setTimeout(() => {
+      setIsTransitioning(false)
+    }, 500) // Match this with the CSS transition duration
+  }
 
   // Loading state - wait for all required data
   if (loading) {
@@ -155,10 +192,7 @@ export default function Results() {
               className={`px-4 py-1 rounded-full text-sm font-bold transition-all duration-150 ${
                 view === 'self' ? 'bg-white border-2 border-black shadow' : 'text-gray-500'
               }`}
-              onClick={() => {
-                setView('self')
-                setSelectedToken(null)
-              }}
+              onClick={() => handleViewChange('self')}
             >
               self placed
             </button>
@@ -166,10 +200,7 @@ export default function Results() {
               className={`px-4 py-1 rounded-full text-sm font-bold transition-all duration-150 ml-1 ${
                 view === 'guessed' ? 'bg-white border-2 border-black shadow' : 'text-gray-500'
               }`}
-              onClick={() => {
-                setView('guessed')
-                setSelectedToken(null)
-              }}
+              onClick={() => handleViewChange('guessed')}
             >
               guessed
             </button>
@@ -208,16 +239,30 @@ export default function Results() {
                 onClick={() => setSelectedToken(null)}
               />
 
-              {view === 'self' &&
-                results.selfPlaced.map(token => (
+              {/* Render all tokens at once, controlling their visibility and position based on view */}
+              {results.selfPlaced.map(token => {
+                // Find the corresponding guessed result if it exists
+                const guessedResult = results.guessed.find(g => g.user_id === token.user_id)
+                
+                // Determine the position based on current view
+                const position = view === 'self' 
+                  ? { x: token.x, y: token.y }
+                  : guessedResult 
+                    ? { x: guessedResult.averagePosition.x, y: guessedResult.averagePosition.y }
+                    : null
+
+                // Skip rendering if no position in current view
+                if (!position) return null
+
+                return (
                   <div
                     key={token.user_id}
                     style={{
                       position: 'absolute',
-                      left: `${token.x}%`,
-                      top: `${token.y}%`,
+                      left: `${position.x}%`,
+                      top: `${position.y}%`,
                       transform: 'translate(-50%, -50%)',
-                      transition: 'all 0.3s ease-in-out',
+                      transition: 'all 0.5s ease-in-out',
                       zIndex: selectedToken === token.user_id ? 15 : 10,
                       opacity: selectedToken && selectedToken !== token.user_id ? 0.6 : 1,
                       cursor: 'pointer',
@@ -232,74 +277,45 @@ export default function Results() {
                       name={token.username}
                       x={0}
                       y={0}
-                      color={token.color}
+                      color={getUserColor(token.user_id)}
                       size={TOKEN_SIZE}
                       imageUrl={token.avatar_url}
                       showTooltip={false}
                       isSelected={selectedToken === token.user_id}
                     />
                   </div>
-                ))
-              }
+                )
+              })}
 
-              {view === 'guessed' &&
-                results.guessed.map(guessedResult => (
-                  <div key={guessedResult.user_id}>
-                    {guessedResult.individualGuesses.map((guess, index) => (
-                      <div
-                        key={`guess-${index}`}
-                        style={{
-                          position: 'absolute',
-                          left: `${guess.position.x}%`,
-                          top: `${guess.position.y}%`,
-                          transform: 'translate(-50%, -50%)',
-                          zIndex: 5,
-                          opacity: 0.4,
-                          pointerEvents: 'none',
-                        }}
-                      >
-                        <Token
-                          id={`guess-${index}`}
-                          name={guess.guesser_name}
-                          x={0}
-                          y={0}
-                          color={guessedResult.color}
-                          size={GUESS_TOKEN_SIZE}
-                          imageUrl={guess.guesser_avatar}
-                          showTooltip={true}
-                        />
-                      </div>
-                    ))}
+              {/* Render individual guesses only when a token is selected */}
+              {selectedToken && view === 'guessed' && 
+                results.guessed
+                  .find(g => g.user_id === selectedToken)
+                  ?.individualGuesses.map((guess, index) => (
                     <div
+                      key={`guess-${selectedToken}-${index}`}
                       style={{
                         position: 'absolute',
-                        left: `${guessedResult.averagePosition.x}%`,
-                        top: `${guessedResult.averagePosition.y}%`,
+                        left: `${guess.position.x}%`,
+                        top: `${guess.position.y}%`,
                         transform: 'translate(-50%, -50%)',
-                        transition: 'all 0.3s ease-in-out',
-                        zIndex: selectedToken === guessedResult.user_id ? 15 : 10,
-                        cursor: 'pointer',
-                        filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3))',
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setSelectedToken(selectedToken === guessedResult.user_id ? null : guessedResult.user_id)
+                        zIndex: 20,
+                        opacity: 0.8,
+                        transition: 'opacity 0.3s ease-in-out',
                       }}
                     >
                       <Token
-                        id={guessedResult.user_id}
-                        name={guessedResult.username}
+                        id={`guess-${selectedToken}-${index}`}
+                        name={`placed by ${guess.guesser_name}`}
                         x={0}
                         y={0}
-                        color={guessedResult.color}
-                        size={TOKEN_SIZE + 5}
-                        imageUrl={guessedResult.avatar_url}
-                        showTooltip={false}
-                        isSelected={selectedToken === guessedResult.user_id}
+                        color={getUserColor(selectedToken)}
+                        size={GUESS_TOKEN_SIZE}
+                        imageUrl={guess.guesser_avatar}
+                        showTooltip={true}
                       />
                     </div>
-                  </div>
-                ))
+                  ))
               }
             </Axis>
           </div>
@@ -350,10 +366,10 @@ export default function Results() {
               </div>
               <div className="ml-2 flex items-center justify-center">
                 <img
-                  src={selectedTokenInfo.avatar_url || selectedTokenInfo.userAvatar}
+                  src={getUserAvatar(selectedTokenInfo.user_id, selectedTokenInfo.avatar_url)}
                   alt="avatar"
                   className="w-12 h-12 rounded-full border-4"
-                  style={{ borderColor: selectedTokenInfo.color || '#A855F7' }}
+                  style={{ borderColor: getUserColor(selectedTokenInfo.user_id) }}
                 />
               </div>
             </div>
@@ -361,7 +377,7 @@ export default function Results() {
             {/* ENHANCED: Show axis context for comments */}
             <div className="px-6 pb-2">
               <div className="text-xs text-gray-600 text-center">
-                Comments for {selectedTokenInfo.username || selectedTokenInfo.name} on {dailyAxis.date_generated}
+                Comments for {selectedTokenInfo.username} on {dailyAxis.date_generated}
               </div>
             </div>
 

@@ -1,6 +1,7 @@
 // hooks/useComments.ts
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/auth/supabase'
+import { getUserAvatar } from '../lib/avatars'
 
 interface Comment {
   id: string
@@ -91,7 +92,7 @@ export const useComments = (
         return {
           id: comment.id,
           author: profile?.name || 'Unknown User',
-          author_avatar: profile?.avatar_url || `https://i.pravatar.cc/150?img=${Math.floor(Math.random() * 50)}`,
+          author_avatar: getUserAvatar(comment.commenter_user_id, profile?.avatar_url),
           text: comment.comment_text,
           created_at: comment.created_at,
           commenter_user_id: comment.commenter_user_id

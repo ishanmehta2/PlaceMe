@@ -1,5 +1,29 @@
 "use client"
 import React from 'react'
+import { getUserAvatar } from '../lib/avatars'
+
+// Monster URLs for consistent assignment
+const MONSTERS = [
+  'https://api.dicebear.com/7.x/bottts/svg?seed=monster1', // Robot monster
+  'https://api.dicebear.com/7.x/bottts/svg?seed=monster2', // Alien monster
+  'https://api.dicebear.com/7.x/bottts/svg?seed=monster3', // Ghost monster
+  'https://api.dicebear.com/7.x/bottts/svg?seed=monster4', // Dragon monster
+  'https://api.dicebear.com/7.x/bottts/svg?seed=monster5', // Dinosaur monster
+  'https://api.dicebear.com/7.x/bottts/svg?seed=monster6', // Octopus monster
+  'https://api.dicebear.com/7.x/bottts/svg?seed=monster7', // Spider monster
+  'https://api.dicebear.com/7.x/bottts/svg?seed=monster8', // Slime monster
+]
+
+// Function to get a consistent monster for a user ID
+export function getUserMonster(userId: string): string {
+  // Simple hash function to convert string to number
+  let hash = 0;
+  for (let i = 0; i < userId.length; i++) {
+    hash = userId.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  // Use the hash to select a monster
+  return MONSTERS[Math.abs(hash) % MONSTERS.length];
+}
 
 export interface TokenProps {
   id: string
@@ -11,9 +35,9 @@ export interface TokenProps {
   showTooltip?: boolean
   onClick?: (e: React.MouseEvent) => void
   className?: string
-  imageUrl?: string
   isSelected?: boolean
   isUnplaced?: boolean
+  imageUrl?: string | null
 }
 
 export default function Token({
@@ -26,13 +50,16 @@ export default function Token({
   showTooltip = true,
   onClick,
   className = '',
-  imageUrl,
   isSelected = false,
   isUnplaced = false,
+  imageUrl = null,
 }: TokenProps) {
   const border = Math.max(4, Math.round(size * 0.13)) // 13% of size, min 4px
   const fontSize = Math.max(14, Math.round(size * 0.36)) // 36% of size, min 14px
   const imageSize = size - border * 2
+
+  // Get avatar URL from centralized system
+  const displayImageUrl = getUserAvatar(id, imageUrl)
 
   return (
     <div
@@ -41,6 +68,7 @@ export default function Token({
         left: x,
         top: y,
         zIndex: 2,
+        transform: 'translate(-50%, -50%)',
       }}
     >
       <div
@@ -65,22 +93,20 @@ export default function Token({
         title={showTooltip ? name : undefined}
         onClick={onClick}
       >
-        {imageUrl ? (
-          <img
-            src={imageUrl}
-            alt={name}
-            style={{ 
-              width: imageSize, 
-              height: imageSize, 
-              objectFit: 'cover', 
-              borderRadius: '50%',
-              filter: isUnplaced ? 'grayscale(50%)' : 'none'
-            }}
-          />
-        ) : null}
+        <img
+          src={displayImageUrl}
+          alt={name}
+          style={{ 
+            width: imageSize, 
+            height: imageSize, 
+            objectFit: 'cover', 
+            borderRadius: '50%',
+            filter: isUnplaced ? 'grayscale(50%)' : 'none'
+          }}
+        />
       </div>
       <div
-        className="mt-1 text-center"
+        className="mt-1 text-center whitespace-nowrap"
         style={{ 
           fontWeight: isSelected ? 700 : 600, 
           fontSize, 

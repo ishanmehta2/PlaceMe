@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/auth/supabase'
+import { getUserAvatar } from '../lib/avatars'
 
 interface ResultToken {
   user_id: string
@@ -56,6 +57,22 @@ interface DailyAxis {
       right: string
     }
   }
+}
+
+interface Profile {
+  id: string
+  name: string
+  avatar_url: string
+}
+
+interface Placement {
+  placer_user_id: string
+  placed_user_id: string
+  created_at: string
+  position_x: number
+  position_y: number
+  username: string
+  first_name: string
 }
 
 // Colors for members (consistent assignment)
@@ -185,18 +202,34 @@ export const useResults = () => {
           console.error('Error fetching self placements:', selfError)
         }
         
-        // STEP 3: Fetch guessed placements for this specific axis (where others placed the current user)
+        // STEP 3: Fetch guessed placements for this specific axis
         const { data: guessedPlacements, error: guessedError } = await supabase
           .from('place_others')
           .select('*')
           .eq('group_id', groupId)
           .eq('axis_id', processedAxis.id) // Filter by specific axis
-          .eq('placed_user_id', user.id) // Where others placed the current user
           .order('created_at', { ascending: false })
         
         if (guessedError) {
           console.error('Error fetching guessed placements:', guessedError)
         }
+
+        // Filter out self-placements and keep only most recent placement for each placer/placed pair
+        const filteredGuessedPlacements = ((guessedPlacements || []) as Placement[])
+          .filter(placement => placement.placer_user_id !== placement.placed_user_id) // Remove self-placements
+          .reduce((acc, placement) => {
+            // Create a unique key for each placer/placed pair
+            const key = `${placement.placer_user_id}-${placement.placed_user_id}`
+            
+            // If we haven't seen this pair before, or this placement is more recent than what we have
+            if (!acc[key] || new Date(placement.created_at) > new Date(acc[key].created_at)) {
+              acc[key] = placement
+            }
+            return acc
+          }, {} as Record<string, Placement>)
+        
+        // Convert the reduced object back to an array
+        const uniqueGuessedPlacements = Object.values(filteredGuessedPlacements)
         
         // STEP 4: Get group members for avatars and names
         const { data: membersData, error: membersError } = await supabase
@@ -211,7 +244,7 @@ export const useResults = () => {
         // STEP 5: Get profiles for all members
         const memberUserIds = membersData?.map(member => member.user_id) || []
         
-        let profiles = []
+        let profiles: Profile[] = []
         if (memberUserIds.length > 0) {
           const { data: profilesData, error: profilesError } = await supabase
             .from('profiles')
@@ -233,7 +266,7 @@ export const useResults = () => {
             selfPlacedMap.set(placement.user_id, {
               user_id: placement.user_id,
               username: placement.first_name || profile?.name || 'Unknown',
-              avatar_url: profile?.avatar_url || `https://i.pravatar.cc/150?img=${Math.floor(Math.random() * 50)}`,
+              avatar_url: getUserAvatar(placement.user_id, profile?.avatar_url),
               color: getMemberColor(selfPlacedMap.size),
               x: placement.position_x,
               y: placement.position_y
@@ -241,43 +274,55 @@ export const useResults = () => {
           }
         })
         
-        // STEP 7: Process guessed placements (where others placed current user)
+        // STEP 7: Process guessed placements
         const guessedResult: GuessedResult[] = []
         
-        if (guessedPlacements && guessedPlacements.length > 0) {
-          // Get individual guesses with guesser info
-          const individualGuesses: IndividualGuess[] = []
-          let totalX = 0
-          let totalY = 0
+        if (uniqueGuessedPlacements.length > 0) {
+          // Group placements by placed_user_id
+          const placementsByUser = new Map<string, any[]>()
           
-          for (const placement of guessedPlacements) {
-            const guesserProfile = profiles.find(p => p.id === placement.placer_user_id)
+          uniqueGuessedPlacements.forEach(placement => {
+            if (!placementsByUser.has(placement.placed_user_id)) {
+              placementsByUser.set(placement.placed_user_id, [])
+            }
+            placementsByUser.get(placement.placed_user_id)?.push(placement)
+          })
+          
+          // Process each user's placements
+          placementsByUser.forEach((placements, placedUserId) => {
+            const individualGuesses: IndividualGuess[] = []
+            let totalX = 0
+            let totalY = 0
             
-            individualGuesses.push({
-              guesser_id: placement.placer_user_id,
-              guesser_name: guesserProfile?.name || 'Unknown',
-              guesser_avatar: guesserProfile?.avatar_url || `https://i.pravatar.cc/150?img=${Math.floor(Math.random() * 50)}`,
-              position: { x: placement.position_x, y: placement.position_y }
+            placements.forEach(placement => {
+              const guesserProfile = profiles.find(p => p.id === placement.placer_user_id)
+              
+              individualGuesses.push({
+                guesser_id: placement.placer_user_id,
+                guesser_name: guesserProfile?.name || 'Unknown',
+                guesser_avatar: getUserAvatar(placement.placer_user_id, guesserProfile?.avatar_url),
+                position: { x: placement.position_x, y: placement.position_y }
+              })
+              
+              totalX += placement.position_x
+              totalY += placement.position_y
             })
             
-            totalX += placement.position_x
-            totalY += placement.position_y
-          }
-          
-          // Calculate average position
-          const averageX = totalX / guessedPlacements.length
-          const averageY = totalY / guessedPlacements.length
-          
-          // Get current user's profile for the guessed result
-          const currentUserProfile = profiles.find(p => p.id === user.id)
-          
-          guessedResult.push({
-            user_id: user.id,
-            username: currentUserProfile?.name || 'You',
-            avatar_url: currentUserProfile?.avatar_url || `https://i.pravatar.cc/150?img=${Math.floor(Math.random() * 50)}`,
-            color: getMemberColor(0),
-            averagePosition: { x: averageX, y: averageY },
-            individualGuesses
+            // Calculate average position
+            const averageX = totalX / placements.length
+            const averageY = totalY / placements.length
+            
+            // Get placed user's profile
+            const placedUserProfile = profiles.find(p => p.id === placedUserId)
+            
+            guessedResult.push({
+              user_id: placedUserId,
+              username: placedUserProfile?.name || 'Unknown',
+              avatar_url: placedUserProfile?.avatar_url || `https://i.pravatar.cc/150?img=${Math.floor(Math.random() * 50)}`,
+              color: getMemberColor(guessedResult.length),
+              averagePosition: { x: averageX, y: averageY },
+              individualGuesses
+            })
           })
         }
         

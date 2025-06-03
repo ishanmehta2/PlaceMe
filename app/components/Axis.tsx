@@ -101,7 +101,6 @@ export default function Axis({
             transform: 'translate(-50%, -50%)',
             position: 'relative',
             borderRadius: '24px',
-            overflow: 'hidden',
           }}
         >
           {/* Axis lines */}
