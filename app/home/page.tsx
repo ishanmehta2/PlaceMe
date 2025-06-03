@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/auth/supabase'
 import { useComments } from '../hooks/useComments'
 import Axis from '../components/Axis'
+import ResultsPopup from '../components/ResultsPopup' // NEW: Import the popup component
 import { FaCrown } from "react-icons/fa";
 import { ChevronDownIcon } from '@heroicons/react/24/solid'
 import { getUserAvatar } from '../lib/avatars'
@@ -27,7 +28,7 @@ interface AxisResults {
   axis_id: string
   date_generated: string
   is_active: boolean
-  is_locked: boolean // NEW: Track if this axis is locked for current user
+  is_locked: boolean // Track if this axis is locked for current user
   members: GroupMember[]
   labels: {
     top: string
@@ -81,13 +82,17 @@ export default function Home() {
   const [activeGroupCreator, setActiveGroupCreator] = useState<string | null>(null) // Creator ID
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
 
-  // Comments functionality state
+  // NEW: Results popup state
+  const [resultsPopupOpen, setResultsPopupOpen] = useState(false)
+  const [selectedResultsAxis, setSelectedResultsAxis] = useState<AxisResults | null>(null)
+
+  // Comments functionality state (for home page historical comments)
   const [selectedToken, setSelectedToken] = useState<string | null>(null)
   const [selectedAxis, setSelectedAxis] = useState<AxisResults | null>(null)
   const [newComment, setNewComment] = useState('')
   const commentsEndRef = useRef<HTMLDivElement | null>(null)
 
-  // Comments hook for the selected token and axis
+  // Comments hook for the selected token and axis (home page comments)
   const {
     comments,
     loading: commentsLoading,
@@ -124,7 +129,7 @@ export default function Home() {
     }
   }
 
-  // Handle token click to show comments (only for unlocked axes)
+  // Handle token click to show comments (only for unlocked axes) - HOME PAGE COMMENTS
   const handleTokenClick = (e: React.MouseEvent, member: GroupMember, axis: AxisResults) => {
     e.preventDefault()
     e.stopPropagation()
@@ -143,7 +148,24 @@ export default function Home() {
     }
   }
 
-  // NEW: Handle locked axis click - navigate to place_yourself for this group
+  // NEW: Handle axis click to open results popup
+  const handleAxisClick = (axis: AxisResults) => {
+    // Don't open popup if axis is locked
+    if (axis.is_locked) return
+
+    // Set up session storage for the selected axis
+    if (!activeGroup) return
+    
+    sessionStorage.setItem('workflowGroupId', activeGroup)
+    sessionStorage.setItem('workflowGroupName', groupName)
+    sessionStorage.setItem('workflowGroupCode', userGroups.find(g => g.id === activeGroup)?.invite_code || '')
+    
+    // Set the selected axis and open popup
+    setSelectedResultsAxis(axis)
+    setResultsPopupOpen(true)
+  }
+
+  // Handle locked axis click - navigate to place_yourself for this group
   const handleLockedAxisClick = (axis: AxisResults) => {
     if (!activeGroup) return
     
@@ -242,7 +264,7 @@ export default function Home() {
     fetchUserAndGroups();
   }, [router]);
 
-  // UPDATED: Fetch historical axes and check lock status
+  // Fetch historical axes and check lock status
   const fetchHistoricalAxes = async (groupId: string, userId: string) => {
     try {
       setAxesLoading(true);
@@ -270,7 +292,7 @@ export default function Home() {
 
       console.log('📊 Found', axes.length, 'axes for group:');
 
-      // 2️⃣ NEW: Check which axes the user has placed themselves on
+      // 2️⃣ Check which axes the user has placed themselves on
       const axisIds = axes.map(axis => axis.id);
       const { data: userPlacements, error: placementsError } = await supabase
         .from('place_yourself')
@@ -377,7 +399,7 @@ export default function Home() {
           axis_id: axis.id,
           date_generated: axis.date_generated,
           is_active: axis.is_active,
-          is_locked: isLocked, // NEW: Track lock status
+          is_locked: isLocked,
           members: members,
           labels: {
             top: axis.top_label,
@@ -486,6 +508,21 @@ export default function Home() {
 
   return (
     <main className="flex min-h-screen flex-col items-center p-0 bg-[#FFF8E1] relative">
+      {/* NEW: Results Popup */}
+      {selectedResultsAxis && (
+        <ResultsPopup
+          isOpen={resultsPopupOpen}
+          onClose={() => {
+            setResultsPopupOpen(false)
+            setSelectedResultsAxis(null)
+          }}
+          groupId={activeGroup || ''}
+          groupName={groupName}
+          axisId={selectedResultsAxis.axis_id}
+          axisDate={formatDate(selectedResultsAxis.date_generated)}
+        />
+      )}
+
       {/* Header */}
       <header className="sticky top-0 w-full z-20 bg-[#FFF8E1] flex items-center h-20 border-b-2 border-black">
         <button
@@ -786,7 +823,7 @@ export default function Home() {
                   )}
                 </div>
                 
-                {/* NEW: Different display based on lock status */}
+                {/* UPDATED: Different display based on lock status */}
                 {axis.is_locked ? (
                   // LOCKED STATE - Show lock design
                   <div 
@@ -811,34 +848,44 @@ export default function Home() {
                     </div>
                   </div>
                 ) : (
-                  // UNLOCKED STATE - Show normal axis
+                  // UNLOCKED STATE - Show normal axis with click handler for results popup
                   <>
                     <div className="text-sm text-gray-600 mb-2">
                       {axis.members.length} member{axis.members.length !== 1 ? 's' : ''} placed
                     </div>
-                    <Axis
-                      labels={axis.labels}
-                      labelColors={axis.labels.labelColors}
-                      size={500}
-                      tokenSize={36}
-                      tokens={axis.members
-                        .filter((member, memberIndex, self) => 
-                          // Additional safety check: ensure unique IDs even if duplicates slipped through
-                          memberIndex === self.findIndex(m => m.id === member.id)
-                        )
-                        .map((member) => ({
-                          id: member.id,
-                          name: member.name,
-                          x: member.position?.x || 0,
-                          y: member.position?.y || 0,
-                          color: member.color,
-                          borderColor: member.borderColor,
-                          imageUrl: member.imageUrl,
-                          onClick: (e: React.MouseEvent) => handleTokenClick(e, member, axis),
-                          isSelected: selectedToken === member.id && selectedAxis?.axis_id === axis.axis_id,
-                        }))
-                      }
-                    />
+                    
+                    {/* UPDATED: Add click handler to open results popup */}
+                    <div
+                      onClick={() => handleAxisClick(axis)}
+                      className="cursor-pointer hover:opacity-80 transition-opacity"
+                    >
+                      <Axis
+                        labels={axis.labels}
+                        labelColors={axis.labels.labelColors}
+                        size={500}
+                        tokenSize={36}
+                        tokens={axis.members
+                          .filter((member, memberIndex, self) => 
+                            // Additional safety check: ensure unique IDs even if duplicates slipped through
+                            memberIndex === self.findIndex(m => m.id === member.id)
+                          )
+                          .map((member) => ({
+                            id: member.id,
+                            name: member.name,
+                            x: member.position?.x || 0,
+                            y: member.position?.y || 0,
+                            color: member.color,
+                            borderColor: member.borderColor,
+                            imageUrl: member.imageUrl,
+                            onClick: (e: React.MouseEvent) => {
+                              e.stopPropagation() // Prevent axis click
+                              handleTokenClick(e, member, axis)
+                            },
+                            isSelected: selectedToken === member.id && selectedAxis?.axis_id === axis.axis_id,
+                          }))
+                        }
+                      />
+                    </div>
                   </>
                 )}
                 
@@ -852,7 +899,7 @@ export default function Home() {
         )}
       </div>
 
-      {/* Comments Panel - Only show for unlocked axes */}
+      {/* Comments Panel - Only show for unlocked axes (HOME PAGE COMMENTS) */}
       <div
         className={`fixed bottom-0 left-0 right-0 z-50 bg-[#FFF5D6] rounded-t-[36px] shadow-2xl transition-transform duration-300 ease-in-out transform ${
           selectedToken && !selectedAxis?.is_locked ? 'translate-y-0' : 'translate-y-full'
