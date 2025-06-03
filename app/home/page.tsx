@@ -7,6 +7,7 @@ import { useComments } from '../hooks/useComments'
 import Axis from '../components/Axis'
 import { FaCrown } from "react-icons/fa";
 import { ChevronDownIcon } from '@heroicons/react/24/solid'
+import { getUserAvatar } from '../lib/avatars'
 
 interface GroupMember {
   id: string
@@ -356,7 +357,7 @@ export default function Home() {
                 members.push({
                   id: placement.user_id,
                   name: profile?.name || placement.first_name || 'Unknown',
-                  imageUrl: profile?.avatar_url || `https://i.pravatar.cc/150?img=${Math.floor(Math.random() * 50)}`,
+                  imageUrl: getUserAvatar(placement.user_id, profile?.avatar_url),
                   position: {
                     x: placement.position_x / 100, // Convert 0-100% to 0-1
                     y: placement.position_y / 100

@@ -461,8 +461,8 @@ export const useGroupWorkflow = () => {
         group_code: selectedGroup.invite_code,
         username: token.firstName,
         first_name: token.firstName,
-        position_x: token.position.x,
-        position_y: token.position.y,
+        position_x: token.position.x * 100, // Convert from 0-1 to 0-100
+        position_y: token.position.y * 100, // Convert from 0-1 to 0-100
         top_label: dailyAxis.labels.top,
         bottom_label: dailyAxis.labels.bottom,
         left_label: dailyAxis.labels.left,

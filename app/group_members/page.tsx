@@ -7,6 +7,7 @@ import { FaCrown } from "react-icons/fa";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../../lib/auth/supabase";
 import { IoArrowBack } from "react-icons/io5"; // Back arrow icon
+import { getUserAvatar } from "../lib/avatars";
 
 interface Member {
   id: string;
@@ -239,19 +240,13 @@ export default function GroupMembersPage() {
               className="relative bg-white rounded-xl shadow-md p-4 flex justify-between items-center"
             >
               <div className="flex items-center gap-3">
-                {user.avatar_url ? (
-                  <Image
-                    src={user.avatar_url}
+                <div className="w-10 h-10 rounded-full overflow-hidden">
+                  <img
+                    src={getUserAvatar(user.id, user.avatar_url)}
                     alt={user.name}
-                    width={40}
-                    height={40}
-                    className="rounded-full"
+                    className="w-full h-full object-cover"
                   />
-                ) : (
-                  <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center font-bold">
-                    {user.name.charAt(0)}
-                  </div>
-                )}
+                </div>
                 <span className="font-semibold">{user.name}</span>
                 {user.isMod && (
                   <FaCrown className="text-yellow-500 text-xl ml-1" title="Moderator" />

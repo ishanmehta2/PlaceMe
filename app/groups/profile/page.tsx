@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../../lib/auth/supabase'
 import { useRouter } from 'next/navigation'
+import { getUserAvatar } from '../../lib/avatars'
 
 interface UserGroup {
   id: string
@@ -75,7 +76,6 @@ export default function Profile() {
               setGroups([])
             } else {
               const formattedGroups = groupsData.map((group) => {
-                // role is still fetched, but we won't display it now
                 return {
                   id: group.id,
                   name: group.name,
@@ -116,7 +116,7 @@ export default function Profile() {
         <div className="flex flex-col items-center space-y-4">
           <div className="w-32 h-32 bg-gray-300 rounded-full overflow-hidden">
             <img
-              src={profile?.avatar_url || '/default-avatar.png'}
+              src={getUserAvatar(profile?.id || '', profile?.avatar_url)}
               alt="Profile"
               className="object-cover w-full h-full"
             />

@@ -2,6 +2,11 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/auth/supabase'
 
+// Helper function to capitalize first letter
+function capitalizeFirstLetter(str: string): string {
+  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase()
+}
+
 interface UserData {
   userName: string
   firstName: string
@@ -43,16 +48,20 @@ export function useUserData(): UserData {
         
         if (profileError) {
           console.error('Error fetching profile:', profileError)
-          setUserName(user.email || 'User')
-          setFirstName(user.email?.split('@')[0] || 'User')
+          const defaultName = user.email?.split('@')[0] || 'User'
+          setUserName(capitalizeFirstLetter(defaultName))
+          setFirstName(capitalizeFirstLetter(defaultName))
         } else if (profile) {
-          setUserName(profile.username || profile.full_name || user.email || 'User')
-          setFirstName(profile.full_name?.split(' ')[0] || profile.username || user.email?.split('@')[0] || 'User')
+          const fullName = profile.username || profile.full_name || user.email || 'User'
+          const firstName = profile.full_name?.split(' ')[0] || profile.username || user.email?.split('@')[0] || 'User'
+          
+          setUserName(capitalizeFirstLetter(fullName))
+          setFirstName(capitalizeFirstLetter(firstName))
           setUserAvatar(profile.avatar_url || '')
           
-          // Save user info to session storage
-          sessionStorage.setItem('currentUserName', profile.username || profile.full_name || user.email || 'User')
-          sessionStorage.setItem('currentFirstName', firstName)
+          // Save user info to session storage with correct capitalization
+          sessionStorage.setItem('currentUserName', capitalizeFirstLetter(fullName))
+          sessionStorage.setItem('currentFirstName', capitalizeFirstLetter(firstName))
           sessionStorage.setItem('currentUserAvatar', profile.avatar_url || '')
         }
         
