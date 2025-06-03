@@ -65,7 +65,7 @@ export default function Login() {
         .from('group_members')
         .select('group_id')
         .eq('user_id', userId)
-        .order('created_at', { ascending: false })
+        .order('joined_at', { ascending: false })
         .limit(1)
 
       if (groupError) {

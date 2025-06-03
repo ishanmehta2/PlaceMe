@@ -173,7 +173,7 @@ export default function Home() {
     sessionStorage.setItem('workflowGroupId', activeGroup)
     sessionStorage.setItem('workflowGroupName', groupName)
     sessionStorage.setItem('workflowGroupCode', userGroups.find(g => g.id === activeGroup)?.invite_code || '')
-    
+    sessionStorage.setItem('targetAxisId', axis.axis_id)
     // Navigate to place_yourself
     router.push('/groups/place_yourself')
   }
@@ -946,7 +946,7 @@ export default function Home() {
             {/* Show axis context for comments */}
             <div className="px-6 pb-2">
               <div className="text-xs text-gray-600 text-center">
-                Comments for {selectedTokenInfo.name} on {formatDate(selectedAxis.date_generated)}
+                Comments for {selectedTokenInfo.name} on {formatDate(selectedAxis.date_generated, historicalAxes.findIndex(a => a.axis_id === selectedAxis.axis_id))}
                 
               </div>
             </div>

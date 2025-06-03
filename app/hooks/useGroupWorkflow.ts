@@ -344,6 +344,12 @@ export const useGroupWorkflow = () => {
     try {
       console.log('💾 Saving self placement for user:', firstName)
       console.log('📊 Using daily axis:', dailyAxis.id, 'for group:', selectedGroup.name)
+
+      const targetAxisId = sessionStorage.getItem('targetAxisId')
+      if (targetAxisId) {
+        console.log('🎯 Clearing target axis after placement')
+        sessionStorage.removeItem('targetAxisId')
+      }
       
       // Ensure position is in normalized coordinates (0-1)
       const normalizedX = Math.max(0, Math.min(1, position.x))

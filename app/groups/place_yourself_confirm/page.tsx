@@ -108,7 +108,7 @@ export default function PlaceYourselfConfirm() {
             .from('group_members')
             .select('group_id')
             .eq('user_id', currentUserId)
-            .order('created_at', { ascending: false })
+            .order('joined_at', { ascending: false })
             .limit(1)
             
           if (!groupError && groupData && groupData.length > 0) {
