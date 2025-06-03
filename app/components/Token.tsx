@@ -41,6 +41,9 @@ export default function Token({
         left: x,
         top: y,
         zIndex: 2,
+        transform: size < 30 
+          ? `translate(-31%, 6%) ${isSelected ? 'scale(1.1)' : 'scale(1)'}`
+          : isSelected ? 'scale(1.1)' : 'scale(1)',
       }}
     >
       <div
@@ -58,7 +61,6 @@ export default function Token({
               : '0 2px 4px rgba(0,0,0,0.2)',
           overflow: 'hidden',
           cursor: onClick ? 'pointer' : 'default',
-          transform: isSelected ? 'scale(1.1)' : 'scale(1)',
           transition: 'all 0.3s ease-in-out',
           opacity: isUnplaced ? 0.8 : 1,
         }}
@@ -80,13 +82,16 @@ export default function Token({
         ) : null}
       </div>
       <div
-        className="mt-1 text-center"
+        className="mt-1 text-center max-w-[120px]"
         style={{ 
           fontWeight: isSelected ? 700 : 600, 
           fontSize, 
           color: isUnplaced ? '#6B7280' : '#222', 
           textShadow: '0 1px 2px #fff',
           transition: 'all 0.3s ease-in-out',
+          lineHeight: '1.2',
+          maxHeight: fontSize * 2.4,
+          overflow: 'hidden',
         }}
       >
         {name}

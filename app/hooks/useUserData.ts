@@ -45,6 +45,8 @@ export function useUserData(): UserData {
           console.error('Error fetching profile:', profileError)
           setUserName(user.email || 'User')
           setFirstName(user.email?.split('@')[0] || 'User')
+          setUserName(user.email || 'User')
+          setFirstName(user.email?.split('@')[0] || 'User')
         } else if (profile) {
           setUserName(profile.username || profile.full_name || user.email || 'User')
           setFirstName(profile.full_name?.split(' ')[0] || profile.username || user.email?.split('@')[0] || 'User')
