@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '../../../lib/auth/supabase'
 
@@ -12,7 +12,7 @@ interface UserGroup {
   created_by: string
 }
 
-export default function SuggestAxis() {
+function SuggestAxisContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const groupIdFromUrl = searchParams.get('groupId')
@@ -392,5 +392,17 @@ export default function SuggestAxis() {
         </div>
       )}
     </>
+  )
+}
+
+export default function SuggestAxis() {
+  return (
+    <Suspense fallback={
+      <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-[#FFF8E1]">
+        <div className="text-2xl">Loading...</div>
+      </main>
+    }>
+      <SuggestAxisContent />
+    </Suspense>
   )
 }

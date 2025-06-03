@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '../../../../lib/auth/supabase'
 
@@ -10,7 +10,7 @@ interface Group {
   invite_code: string
 }
 
-export default function InviteMembers() {
+function InviteMembersContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const groupId = searchParams.get('groupId') // Updated to match the URL parameter
@@ -239,5 +239,17 @@ export default function InviteMembers() {
         </div>
       </div>
     </main>
+  )
+}
+
+export default function InviteMembers() {
+  return (
+    <Suspense fallback={
+      <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-[#FFF8E1]">
+        <div className="text-2xl">Loading group...</div>
+      </main>
+    }>
+      <InviteMembersContent />
+    </Suspense>
   )
 }
