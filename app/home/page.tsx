@@ -453,9 +453,14 @@ export default function Home() {
     setAxesLoading(false);
   };
 
-  const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  const formatDate = (dateString: string, index: number): string => {
+    // Calculate days ago from today
+    const today = new Date();
+    const daysAgo = index; // 0 for most recent, 1 for yesterday, etc.
+    const displayDate = new Date(today);
+    displayDate.setDate(today.getDate() - daysAgo);
+    
+    return displayDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
   }
   
   if (loading) {
@@ -519,7 +524,7 @@ export default function Home() {
           groupId={activeGroup || ''}
           groupName={groupName}
           axisId={selectedResultsAxis.axis_id}
-          axisDate={formatDate(selectedResultsAxis.date_generated)}
+          axisDate={formatDate(selectedResultsAxis.date_generated, historicalAxes.findIndex(a => a.axis_id === selectedResultsAxis.axis_id))}
         />
       )}
 
@@ -813,9 +818,9 @@ export default function Home() {
             {historicalAxes.map((axis, index) => (
               <div key={axis.axis_id} className="flex flex-col items-center">
                 <div className="flex items-center gap-3 mb-2">
-                  <h2 className="text-2xl font-black" style={{ fontFamily: 'Arial, sans-serif' }}>
-                    {formatDate(axis.date_generated)}
-                  </h2>
+                <h2 className="text-2xl font-black" style={{ fontFamily: 'Arial, sans-serif' }}>
+                  {formatDate(axis.date_generated, index)}
+                </h2>
                   {axis.is_active && (
                     <span className="bg-green-500 text-white px-2 py-1 rounded-full text-xs font-bold">
                       ACTIVE
