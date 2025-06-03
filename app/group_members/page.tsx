@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Suspense } from "react";
 import Image from "next/image";
 import { BsThreeDotsVertical } from "react-icons/bs";
 import { FaCrown } from "react-icons/fa";
@@ -24,7 +24,7 @@ interface UserGroup {
   created_by: string;
 }
 
-export default function GroupMembersPage() {
+function GroupMembersContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const groupIdFromUrl = searchParams.get('groupId'); // Get group ID from URL
@@ -321,5 +321,17 @@ export default function GroupMembersPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function GroupMembersPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#FFF2CC] flex items-center justify-center">
+        <div className="text-xl">Loading...</div>
+      </div>
+    }>
+      <GroupMembersContent />
+    </Suspense>
   );
 }

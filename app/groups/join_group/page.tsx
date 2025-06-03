@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '../../../lib/auth/supabase'
 
@@ -10,7 +10,7 @@ interface GroupInfo {
   invite_code: string
 }
 
-export default function JoinGroup() {
+function JoinGroupContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const groupIdFromUrl = searchParams.get('groupId')
@@ -320,5 +320,17 @@ export default function JoinGroup() {
         )}
       </div>
     </main>
+  )
+}
+
+export default function JoinGroup() {
+  return (
+    <Suspense fallback={
+      <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-[#FFF8E1]">
+        <div className="text-2xl">Loading...</div>
+      </main>
+    }>
+      <JoinGroupContent />
+    </Suspense>
   )
 }
