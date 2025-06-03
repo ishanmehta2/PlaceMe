@@ -31,6 +31,8 @@ export default function PlaceYourself() {
   
   const [isSaving, setIsSaving] = useState(false)
   const [showHomeConfirm, setShowHomeConfirm] = useState(false)
+  const [showPlacementError, setShowPlacementError] = useState(false)
+  const [hasMovedToken, setHasMovedToken] = useState(false)
   
   // Start at center of grid, accounting for token size
   const initialPositions = { 
@@ -49,6 +51,14 @@ export default function PlaceYourself() {
     handleDragEnd,
     handleDragCancel
   } = useDragAndDrop(initialPositions)
+
+  // Check if token has moved from initial position
+  useEffect(() => {
+    const currentPos = positions['user-token']
+    const initialPos = initialPositions['user-token']
+    const hasMoved = currentPos.x !== initialPos.x || currentPos.y !== initialPos.y
+    setHasMovedToken(hasMoved)
+  }, [positions])
 
   // Initialize workflow on component mount
   useEffect(() => {
@@ -71,6 +81,20 @@ export default function PlaceYourself() {
     setShowHomeConfirm(false)
   }
 
+  // Handle next button click
+  const handleNextClick = () => {
+    if (!hasMovedToken) {
+      setShowPlacementError(true)
+      return
+    }
+    handleNext()
+  }
+
+  // Close placement error popup
+  const closePlacementError = () => {
+    setShowPlacementError(false)
+  }
+
   // Proceed to place others - UPDATED for new workflow
   const handleNext = async () => {
     if (!selectedGroup || !userName || !firstName) {
@@ -80,6 +104,11 @@ export default function PlaceYourself() {
 
     if (!dailyAxis) {
       console.error('Daily axis is still loading')
+      return
+    }
+
+    if (!hasMovedToken) {
+      console.error('User must move their token before proceeding')
       return
     }
 
@@ -220,6 +249,7 @@ export default function PlaceYourself() {
                     isDragging={activeId === 'user-token'}
                     userAvatar={userAvatar}
                     firstName={firstName}
+                    isUnplaced={!hasMovedToken}
                   />
                 </Axis>
               </div>
@@ -244,9 +274,13 @@ export default function PlaceYourself() {
 
             {/* Next Button - UPDATED conditions */}
             <button
-              onClick={handleNext}
+              onClick={handleNextClick}
               disabled={isSaving || !selectedGroup || !dailyAxis || !userName || !firstName}
-              className="bg-[#60A5FA] py-3 px-10 rounded-full disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#3B82F6] transition"
+              className={`py-3 px-10 rounded-full transition ${
+                hasMovedToken 
+                  ? 'bg-[#60A5FA] hover:bg-[#3B82F6]' 
+                  : 'bg-[#93C5FD] cursor-not-allowed'
+              }`}
             >
               <span className="text-xl font-black" style={{ 
                 textShadow: '2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000',
@@ -289,6 +323,34 @@ export default function PlaceYourself() {
                 className="flex-1 bg-red-500 text-white py-3 px-4 rounded-lg font-bold hover:bg-red-600 transition"
               >
                 Leave
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Placement Error Popup */}
+      {showPlacementError && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-2xl p-6 mx-4 max-w-sm w-full shadow-2xl">
+            <h3 className="text-xl font-bold mb-4 text-center">
+              Place Yourself First
+            </h3>
+            <p className="text-gray-700 mb-6 text-center">
+              Please place yourself on the axis before proceeding to place others.
+            </p>
+            <div className="flex justify-center">
+              <button
+                onClick={closePlacementError}
+                className="bg-[#60A5FA] py-3 px-8 rounded-full hover:bg-[#3B82F6] transition"
+              >
+                <span className="text-lg font-black" style={{ 
+                  textShadow: '2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000',
+                  color: 'white',
+                  fontFamily: 'Arial, sans-serif'
+                }}>
+                  Got it
+                </span>
               </button>
             </div>
           </div>

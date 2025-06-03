@@ -38,18 +38,20 @@ const getMemberColor = (index: number): string => {
   return colors[index % colors.length]
 }
 
-// Calculate initial positions in a circle
+// Calculate initial positions evenly spaced along x-axis
 const calculateInitialPositions = (memberCount: number): Position[] => {
   const positions: Position[] = []
+  const gridSize = 300 // Grid size
+  const tokenSize = 35 // Token size
+  const margin = tokenSize / 2 // Half token size for margin
+  const usableWidth = gridSize - tokenSize // Available width for spacing
+  
+  // Calculate spacing between tokens
+  const spacing = usableWidth / (memberCount - 1 || 1)
   
   for (let i = 0; i < memberCount; i++) {
-    const angle = (i * 2 * Math.PI) / memberCount
-    const radius = 300 * 0.3 // 30% from center (assuming 300px grid size)
-    const centerX = 150 // Half of 300
-    const centerY = 150 // Half of 300
-    
-    const x = Math.max(18, Math.min(282, centerX + Math.cos(angle) * radius)) // 18 = TOKEN_SIZE/2, 282 = 300-18
-    const y = Math.max(18, Math.min(282, centerY + Math.sin(angle) * radius))
+    const x = margin + (i * spacing)
+    const y = gridSize / 2 // Center vertically
     
     positions.push({ x, y })
   }

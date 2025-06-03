@@ -24,16 +24,37 @@ export default function PlaceOthers() {
   const { dailyAxis, loading: axisLoading, error: axisError } = useDailyAxis(selectedGroup?.id || null)
   
   const [isSaving, setIsSaving] = useState(false)
+  const [hasUnplacedTokens, setHasUnplacedTokens] = useState(true)
+  const [showPlacementError, setShowPlacementError] = useState(false)
 
   // Get the workflow group on component mount
   useEffect(() => {
     getWorkflowGroup()
   }, [])
 
+  // Handle next button click
+  const handleNextClick = () => {
+    if (hasUnplacedTokens) {
+      setShowPlacementError(true)
+      return
+    }
+    handleNext()
+  }
+
+  // Close placement error popup
+  const closePlacementError = () => {
+    setShowPlacementError(false)
+  }
+
   // Handle next button - UPDATED for new workflow
   const handleNext = async () => {
     if (!selectedGroup || !dailyAxis) {
       console.error('Missing required group or axis information')
+      return
+    }
+
+    if (hasUnplacedTokens) {
+      console.error('All tokens must be placed before proceeding')
       return
     }
 
@@ -186,6 +207,7 @@ export default function PlaceOthers() {
               <TokenGrid
                 tokens={tokens}
                 onPositionChange={handlePositionChange}
+                onPlacementStatusChange={setHasUnplacedTokens}
                 axisLabels={dailyAxis.labels}
                 axisColors={dailyAxis.labels.labelColors}
               />
@@ -209,9 +231,13 @@ export default function PlaceOthers() {
 
               {/* Next Button */}
               <button
-                onClick={handleNext}
+                onClick={handleNextClick}
                 disabled={isSaving || !dailyAxis || !selectedGroup}
-                className="bg-[#60A5FA] py-3 px-10 rounded-full disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#3B82F6] transition"
+                className={`py-3 px-10 rounded-full transition ${
+                  hasUnplacedTokens 
+                    ? 'bg-[#93C5FD] cursor-not-allowed' 
+                    : 'bg-[#60A5FA] hover:bg-[#3B82F6]'
+                }`}
               >
                 <span className="text-xl font-black" style={{ 
                   textShadow: '2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000',
@@ -230,6 +256,34 @@ export default function PlaceOthers() {
           </>
         )}
       </div>
+
+      {/* Placement Error Popup */}
+      {showPlacementError && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-2xl p-6 mx-4 max-w-sm w-full shadow-2xl">
+            <h3 className="text-xl font-bold mb-4 text-center">
+              Place Everyone First
+            </h3>
+            <p className="text-gray-700 mb-6 text-center">
+              Please place all members of {selectedGroup?.name} on the axis before proceeding to results.
+            </p>
+            <div className="flex justify-center">
+              <button
+                onClick={closePlacementError}
+                className="bg-[#60A5FA] py-3 px-8 rounded-full hover:bg-[#3B82F6] transition"
+              >
+                <span className="text-lg font-black" style={{ 
+                  textShadow: '2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000',
+                  color: 'white',
+                  fontFamily: 'Arial, sans-serif'
+                }}>
+                  Got it
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }

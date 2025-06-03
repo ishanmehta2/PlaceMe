@@ -2,10 +2,15 @@ import { DndContext } from '@dnd-kit/core'
 import { DraggableToken } from './DraggableToken'
 import Axis from './Axis'
 import { useDragAndDrop } from '../hooks/useDragAndDrop'
+import { useEffect } from 'react'
 
 interface Position {
   x: number
   y: number
+}
+
+interface TokenPositions {
+  [tokenId: string]: Position
 }
 
 interface Token {
@@ -18,6 +23,7 @@ interface Token {
 interface TokenGridProps {
   tokens: Token[]
   onPositionChange?: (tokenId: string, position: Position) => void
+  onPlacementStatusChange?: (hasUnplacedTokens: boolean) => void
   axisLabels: {
     top: string
     bottom: string
@@ -34,9 +40,9 @@ interface TokenGridProps {
 
 const GRID_SIZE = 300
 
-export function TokenGrid({ tokens, onPositionChange, axisLabels, axisColors }: TokenGridProps) {
+export function TokenGrid({ tokens, onPositionChange, onPlacementStatusChange, axisLabels, axisColors }: TokenGridProps) {
   // Initialize positions from tokens
-  const initialPositions = tokens.reduce((acc, token) => ({
+  const initialPositions: TokenPositions = tokens.reduce((acc, token) => ({
     ...acc,
     [token.id]: token.position
   }), {})
@@ -50,6 +56,16 @@ export function TokenGrid({ tokens, onPositionChange, axisLabels, axisColors }: 
     handleDragEnd,
     handleDragCancel
   } = useDragAndDrop(initialPositions)
+
+  // Check for unplaced tokens
+  useEffect(() => {
+    const hasUnplacedTokens = tokens.some(token => {
+      const currentPos = positions[token.id]
+      const initialPos = initialPositions[token.id]
+      return currentPos.x === initialPos.x && currentPos.y === initialPos.y
+    })
+    onPlacementStatusChange?.(hasUnplacedTokens)
+  }, [positions, tokens, initialPositions, onPlacementStatusChange])
 
   // Notify parent of position changes
   const handleDragEndWithCallback = (event: any) => {
@@ -73,16 +89,23 @@ export function TokenGrid({ tokens, onPositionChange, axisLabels, axisColors }: 
           labels={axisLabels}
           labelColors={axisColors}
         >
-          {tokens.map(token => (
-            <DraggableToken
-              key={token.id}
-              id={token.id}
-              position={positions[token.id]}
-              isDragging={activeId === token.id}
-              userAvatar={token.userAvatar}
-              firstName={token.firstName}
-            />
-          ))}
+          {tokens.map(token => {
+            const currentPos = positions[token.id]
+            const initialPos = initialPositions[token.id]
+            const isUnplaced = currentPos.x === initialPos.x && currentPos.y === initialPos.y
+
+            return (
+              <DraggableToken
+                key={token.id}
+                id={token.id}
+                position={positions[token.id]}
+                isDragging={activeId === token.id}
+                userAvatar={token.userAvatar}
+                firstName={token.firstName}
+                isUnplaced={isUnplaced}
+              />
+            )
+          })}
         </Axis>
       </div>
     </DndContext>

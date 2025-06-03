@@ -74,7 +74,7 @@ export default function Axis({
 
   // Calculate font size based on text length and container size
   const calculateFontSize = (text: string, isVertical: boolean = false) => {
-    const baseSize = Math.max(10, Math.round(currentSize * 0.05));
+    const baseSize = Math.max(10, Math.round(currentSize * 0.07));
     // Calculate available space - account for padding and container size
     const availableSpace = currentSize * 0.8; // 60% of container size
     const avgCharWidth = baseSize * 0.6; // Approximate width of a character

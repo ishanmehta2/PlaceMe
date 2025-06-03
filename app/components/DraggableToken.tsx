@@ -12,13 +12,15 @@ interface DraggableTokenProps {
   isDragging: boolean
   userAvatar: string
   firstName: string
+  isUnplaced?: boolean
 }
 
 const TOKEN_SIZE = 35
 const DRAG_SCALE = 1.2
 const DRAG_SHADOW = 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.2))'
+const UNPLACED_ANIMATION = 'pulse 2s infinite'
 
-export function DraggableToken({ id, position, isDragging, userAvatar, firstName }: DraggableTokenProps) {
+export function DraggableToken({ id, position, isDragging, userAvatar, firstName, isUnplaced = false }: DraggableTokenProps) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id,
   })
@@ -52,6 +54,7 @@ export function DraggableToken({ id, position, isDragging, userAvatar, firstName
         filter: isDragging ? DRAG_SHADOW : 'none',
         touchAction: 'none', // Prevent default touch actions
         transformOrigin: 'center center', // Ensure scaling happens from center
+        animation: isUnplaced ? UNPLACED_ANIMATION : 'none',
         // marginLeft: `${TOKEN_SIZE/2}px`, // Center the token on its position
         // marginTop: `${TOKEN_SIZE/2}px`, // Center the token on its position
       }}
@@ -61,9 +64,10 @@ export function DraggableToken({ id, position, isDragging, userAvatar, firstName
         name={firstName}
         x={0}
         y={0}
-        color="#3B82F6"
+        color={isUnplaced ? '#9CA3AF' : '#3B82F6'}
         size={TOKEN_SIZE}
         imageUrl={userAvatar}
+        isUnplaced={isUnplaced}
       />
     </div>
   )

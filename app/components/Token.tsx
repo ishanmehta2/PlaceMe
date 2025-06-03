@@ -13,6 +13,7 @@ export interface TokenProps {
   className?: string
   imageUrl?: string
   isSelected?: boolean
+  isUnplaced?: boolean
 }
 
 export default function Token({
@@ -27,6 +28,7 @@ export default function Token({
   className = '',
   imageUrl,
   isSelected = false,
+  isUnplaced = false,
 }: TokenProps) {
   const border = Math.max(4, Math.round(size * 0.13)) // 13% of size, min 4px
   const fontSize = Math.max(14, Math.round(size * 0.36)) // 36% of size, min 14px
@@ -39,7 +41,6 @@ export default function Token({
         left: x,
         top: y,
         zIndex: 2,
-        // transform: 'translate(-50%, -50%)', // Center the token on its position
       }}
     >
       <div
@@ -52,11 +53,14 @@ export default function Token({
           border: `${border}px solid ${color}`,
           boxShadow: isSelected 
             ? '0 0 0 4px rgba(0,0,0,0.2), 0 4px 8px rgba(0,0,0,0.2)' 
-            : '0 2px 4px rgba(0,0,0,0.2)',
+            : isUnplaced
+              ? '0 0 0 4px rgba(156, 163, 175, 0.3), 0 2px 4px rgba(0,0,0,0.1)'
+              : '0 2px 4px rgba(0,0,0,0.2)',
           overflow: 'hidden',
           cursor: onClick ? 'pointer' : 'default',
           transform: isSelected ? 'scale(1.1)' : 'scale(1)',
           transition: 'all 0.3s ease-in-out',
+          opacity: isUnplaced ? 0.8 : 1,
         }}
         title={showTooltip ? name : undefined}
         onClick={onClick}
@@ -65,7 +69,13 @@ export default function Token({
           <img
             src={imageUrl}
             alt={name}
-            style={{ width: imageSize, height: imageSize, objectFit: 'cover', borderRadius: '50%' }}
+            style={{ 
+              width: imageSize, 
+              height: imageSize, 
+              objectFit: 'cover', 
+              borderRadius: '50%',
+              filter: isUnplaced ? 'grayscale(50%)' : 'none'
+            }}
           />
         ) : null}
       </div>
@@ -74,7 +84,7 @@ export default function Token({
         style={{ 
           fontWeight: isSelected ? 700 : 600, 
           fontSize, 
-          color: '#222', 
+          color: isUnplaced ? '#6B7280' : '#222', 
           textShadow: '0 1px 2px #fff',
           transition: 'all 0.3s ease-in-out',
         }}
