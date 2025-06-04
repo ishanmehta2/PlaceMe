@@ -123,7 +123,242 @@ export interface AxisPair {
       id: 'lifestyle',
       left: 'Wild and free',
       right: 'Calm and safe'
-    }
+    },
+    {
+      id: 'sext-energy',
+      left: 'Sends unhinged 3-paragraph sexts',
+      right: 'Sends a single eggplant emoji and vanishes'
+    },
+    {
+      id: 'hookup-vibe',
+      left: 'Brings a tote bag to a one-night stand',
+      right: 'Leaves hookups without their shoes “as a bit”'
+    },
+    {
+      id: 'flirt-style',
+      left: 'Insults you to flirt',
+      right: 'Compliments you to flirt'
+    },
+    {
+      id: 'sleepover-behavior',
+      left: 'First to sleep at a sleepover',
+      right: 'Does not sleep at a sleepover'
+    },
+    {
+      id: 'bedroom-lighting',
+      left: 'LED strip lights set to red',
+      right: 'Lava lamp and a prayer'
+    },
+    {
+      id: 'first-date-chaos',
+      left: 'Shows up to first dates with a PowerPoint',
+      right: 'Forgets your name but knows your birth chart'
+    },
+    {
+      id: 'text-back-speed',
+      left: 'Instant text reply with 3 follow-ups',
+      right: 'Responds after 6 days like nothing happened'
+    },
+    {
+      id: 'dirty-talk-energy',
+      left: 'Quotes Shakespeare mid-hookup',
+      right: 'Meows as a joke (but not really)'
+    },
+    {
+      id: 'dating-app-vibe',
+      left: 'Dating app bios all lowercase with trauma jokes',
+      right: 'Profile just says “guess my height”'
+    },
+    {
+      id: 'horny-honesty',
+      left: 'Sends “u up?” at 4pm',
+      right: 'Pretends to be chill but uses 7 thirst traps a week'
+    },
+    {
+      id: 'situationship-role',
+      left: 'Ghosts with flair',
+      right: 'Gets ghosted and says thank you'
+    },
+    {
+      id: 'red-flag-pride',
+      left: 'Says “I’m a Gemini” like it’s a warning',
+      right: 'Says “I don’t believe in therapy” like it’s a flex'
+    },
+    {
+      id: 'clothing-philosophy',
+      left: 'Shirtless in winter “for the look”',
+      right: 'Wears socks to bed and nothing else'
+    },
+    {
+      id: 'bathroom-boundary',
+      left: 'Leaves bathroom door open “to stay connected”',
+      right: 'Locks bathroom even when home alone'
+    },
+    {
+      id: 'explanation-style',
+      left: 'Explains kink using academic sources',
+      right: 'Just says “trust me” and winks'
+    },
+    {
+      id: 'dom-sub-spectrum',
+      left: 'Brings spreadsheets to the bedroom',
+      right: 'Wears a leash ironically but never takes it off'
+    },
+    {
+      id: 'food-foreplay',
+      left: 'Eats whipped cream straight from the can',
+      right: 'Seduces people with carefully sliced fruit'
+    },
+    {
+      id: 'tv-binge',
+      left: 'Reality TV is peak culture',
+      right: 'Only watches obscure documentaries'
+    },
+    {
+      id: 'treat-yourself',
+      left: 'Retail therapy',
+      right: 'Bubble bath and a face mask'
+    },
+    {
+      id: 'party-role',
+      left: 'Starts the dance circle',
+      right: 'Steals the aux cord'
+    },
+    {
+      id: 'snack-methodology',
+      left: 'Eats string cheese like a barbarian',
+      right: 'Peels it strand by strand like a monk'
+    },
+    {
+      id: 'clown-aesthetic',
+      left: 'Sad jester energy',
+      right: 'Gremlin mime vibes'
+    },
+    {
+      id: 'sleep-philosophy',
+      left: 'Pulls all-nighters out of spite',
+      right: 'Takes naps that ruin the week'
+    },
+    {
+      id: 'transport-chaos',
+      left: 'Rolls up on a Heely',
+      right: 'Unicycles into the void'
+    },
+    {
+      id: 'phone-call-ethics',
+      left: 'Calls without warning',
+      right: 'Declines calls and texts “what’s up?”'
+    },
+    {
+      id: 'vape-strategy',
+      left: 'Hits a nicotine vape before therapy',
+      right: 'Hits a weed pen before job interviews'
+    },
+    {
+      id: 'religious-upbringing',
+      left: 'Went to Catholic school and has a tattoo about it',
+      right: 'Homeschooled and still wilded out'
+    },
+    {
+      id: 'cancel-culture-response',
+      left: 'Cancellable',
+      right: 'Most loved celebrity'
+    },
+    {
+      id: 'vaccination-energy',
+      left: 'Boosted, masked, and morally superior',
+      right: 'Got the COVID shot at CVS and then licked the floor'
+    },
+    {
+      id: 'political-engagement',
+      left: 'Reads 40-page bills “for fun”',
+      right: 'Votes based on astrology and TikToks'
+    },
+    {
+      id: 'therapy-status',
+      left: 'Goes to therapy weekly, still unwell',
+      right: 'Never been, gives incredible advice'
+    },
+    {
+      id: 'tinder-energy',
+      left: 'Tinder bio says “6ft if that matters”',
+      right: 'Tinder bio says “I have trauma and snacks”'
+    },
+    {
+      id: 'tattoo-ethics',
+      left: 'Only tattoos with deep personal meaning',
+      right: 'Tattooed Garfield on their thigh at 2am'
+    },
+    {
+      id: 'broke-behavior',
+      left: 'Has $3 but will buy you lunch',
+      right: 'Has $30k in savings and refuses to split the bill'
+    },
+    {
+      id: 'murder-allegiance',
+      left: 'Would snitch immediately',
+      right: 'Would help bury the body and ask no questions'
+    },
+    {
+      id: 'moral-flexibility',
+      left: 'Steals out of necessity',
+      right: 'Steals for the thrill'
+    },
+    {
+      id: 'manipulation-style',
+      left: 'Love bombs and vanishes',
+      right: 'Gaslights for sport'
+    },
+    {
+      id: 'drug-ethics',
+      left: 'Won’t even take Tylenol',
+      right: 'Did acid at grandma’s funeral'
+    },
+    {
+      id: 'secret-keeper',
+      left: 'Takes secrets to the grave',
+      right: 'Leaks DMs when slightly annoyed'
+    },
+    {
+      id: 'rage-style',
+      left: 'Yells in private, cries in public',
+      right: 'Silent, but all their plants mysteriously die'
+    },
+    {
+      id: 'revenge-philosophy',
+      left: 'Forgives but never forgets',
+      right: 'Starts a 5-year plan to ruin your life'
+    },
+    {
+      id: 'paranoia-index',
+      left: 'Thinks FBI is listening',
+      right: 'Knows it, and monologues anyway'
+    },
+    {
+      id: 'consequence-awareness',
+      left: 'Has an exit plan for every room',
+      right: 'Doesn’t read warning labels “on principle”'
+    },
+    {
+      id: 'apology-energy',
+      left: 'Writes handwritten letters of remorse',
+      right: 'Says “my bad” and then does it again'
+    },
+    {
+      id: 'festival-vibe',
+      left: 'Coachella but only for the outfits',
+      right: 'Burning Man but forgot the tent'
+    },
+    {
+      id: 'party-scene',
+      left: 'Frat basement with sticky floors',
+      right: 'Queer warehouse rave with no bathrooms'
+    },
+    {
+      id: 'group-chat-role',
+      left: 'Starts drama and then mutes the chat',
+      right: 'Sends memes at 3am and never answers questions'
+    }  
   ]
   
   // Utility functions for working with axis pairs
