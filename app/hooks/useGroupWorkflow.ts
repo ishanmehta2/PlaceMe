@@ -99,7 +99,7 @@ export const useGroupWorkflow = () => {
   const [groupMembers, setGroupMembers] = useState<GroupMember[]>([])
   const [tokens, setTokens] = useState<UserToken[]>([])
 
-  // Initialize the workflow - fetch user groups and randomly select one
+  // REMOVED: Random group selection logic - now uses session storage from home page
   const initializeWorkflow = async () => {
     try {
       setLoading(true)
@@ -116,71 +116,29 @@ export const useGroupWorkflow = () => {
       
       setCurrentUserId(user.id)
       
-      // Fetch groups the user is a member of
-      const { data: groupMemberships, error: groupsError } = await supabase
-        .from('group_members')
-        .select(`
-          id,
-          role,
-          joined_at,
-          group_id
-        `)
-        .eq('user_id', user.id)
-        
-      if (groupsError) {
-        console.error("Error fetching group memberships:", groupsError)
-        setError('Failed to fetch your groups')
-        return
-      }
+      // UPDATED: Get workflow group from session storage (set by home page)
+      const groupId = sessionStorage.getItem('workflowGroupId')
+      const groupName = sessionStorage.getItem('workflowGroupName')
+      const groupCode = sessionStorage.getItem('workflowGroupCode')
       
-      // Get the groups details
-      const groupIds = groupMemberships.map(membership => membership.group_id)
-      
-      if (groupIds.length === 0) {
-        setUserGroups([])
-        setError('You are not part of any groups yet.')
+      if (!groupId || !groupName || !groupCode) {
+        setError('No workflow group found. Please select an axis from the home page.')
         setLoading(false)
         return
       }
       
-      const { data: groupsData, error: groupDetailsError } = await supabase
-        .from('groups')
-        .select('id, name, invite_code, settings, created_at')
-        .in('id', groupIds)
-      
-      if (groupDetailsError) {
-        console.error("Error fetching group details:", groupDetailsError)
-        setError('Failed to fetch group details')
-        return
+      const workflowGroup = {
+        id: groupId,
+        name: groupName,
+        invite_code: groupCode,
+        role: 'member' // We don't store role in session, but it's not critical here
       }
       
-      // Combine the group details with membership info
-      const formattedGroups = groupsData.map(group => {
-        const membership = groupMemberships.find(m => m.group_id === group.id)
-        return {
-          id: group.id,
-          name: group.name,
-          invite_code: group.invite_code,
-          role: membership?.role || 'member'
-        }
-      })
+      setSelectedGroup(workflowGroup)
+      console.log('📋 Retrieved workflow group from session:', workflowGroup.name, '(ID:', workflowGroup.id, ')')
       
-      setUserGroups(formattedGroups)
-      
-      // Randomly select one group for the workflow
-      const randomIndex = Math.floor(Math.random() * formattedGroups.length)
-      const randomGroup = formattedGroups[randomIndex]
-      setSelectedGroup(randomGroup)
-      
-      // Store in session storage for persistence across workflow pages
-      sessionStorage.setItem('workflowGroupId', randomGroup.id)
-      sessionStorage.setItem('workflowGroupName', randomGroup.name)
-      sessionStorage.setItem('workflowGroupCode', randomGroup.invite_code)
-      
-      console.log('🎯 Selected random group for workflow:', randomGroup.name, '(ID:', randomGroup.id, ')')
-      
-      // Fetch members for the selected group (but don't wait for it to complete loading)
-      fetchGroupMembers(randomGroup.id, user.id)
+      // Fetch members for the workflow group
+      await fetchGroupMembers(groupId, user.id)
       
     } catch (err: any) {
       console.error('Error initializing workflow:', err)
@@ -213,7 +171,7 @@ export const useGroupWorkflow = () => {
       const groupCode = sessionStorage.getItem('workflowGroupCode')
       
       if (!groupId || !groupName || !groupCode) {
-        setError('No active workflow group. Please start from place yourself.')
+        setError('No active workflow group. Please start from the home page.')
         return
       }
       
