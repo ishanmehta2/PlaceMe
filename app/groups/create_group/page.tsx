@@ -73,73 +73,119 @@ export default function CreateGroup() {
     getUser()
   }, [router])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    if (!groupName.trim()) {
-      setError('Please enter a group name')
-      return
-    }
-    
-    if (!userId) {
-      setError('You must be logged in to create a group')
-      return
-    }
-    
-    setLoading(true)
-    setError(null)
-    
-    try {
-      // Generate a unique invite code
-      const inviteCode = generateGroupCode()
-      
-      // Create the group
-      const { data: newGroup, error: groupError } = await supabase
-        .from('groups')
-        .insert({
-          name: groupName.trim(),
-          invite_code: inviteCode,
-          created_by: userId,
-          created_at: new Date().toISOString()
-        })
-        .select()
-        .single()
-      
-      if (groupError) throw groupError
-      
-      if (!newGroup || !newGroup.id) {
-        throw new Error('Failed to create group')
-      }
-      
-      // Add the creator as a member of the group
-      const { error: memberError } = await supabase
-        .from('group_members')
-        .insert({
-          group_id: newGroup.id,
-          user_id: userId,
-          role: 'creator', // Mark as creator
-          joined_at: new Date().toISOString()
-        })
-      
-      if (memberError) {
-        console.error('Error adding creator as member:', memberError)
-        // Continue anyway since the group was created
-      }
-      
-      // Store group info in session storage
-      sessionStorage.setItem('currentGroupId', newGroup.id)
-      sessionStorage.setItem('currentGroupCode', inviteCode)
-      sessionStorage.setItem('currentGroupName', groupName.trim())
-      
-      // Redirect to the group code page with the group ID
-      router.push(`/groups/group_code?group_id=${newGroup.id}`)
-    } catch (err: any) {
-      console.error('Error creating group:', err)
-      setError(err.message || 'Failed to create group')
-    } finally {
-      setLoading(false)
-    }
+  // In your create_group/page.tsx, replace the handleSubmit function with this enhanced version:
+
+// In your create_group/page.tsx, replace the handleSubmit function with this enhanced version:
+
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault()
+  
+  if (!groupName.trim()) {
+    setError('Please enter a group name')
+    return
   }
+  
+  if (!userId) {
+    setError('You must be logged in to create a group')
+    return
+  }
+  
+  setLoading(true)
+  setError(null)
+  
+  try {
+    // Generate a unique invite code
+    const inviteCode = generateGroupCode()
+    
+    console.log('🔄 Creating group with:', {
+      name: groupName.trim(),
+      inviteCode,
+      createdBy: userId
+    })
+    
+    // Create the group
+    const { data: newGroup, error: groupError } = await supabase
+      .from('groups')
+      .insert({
+        name: groupName.trim(),
+        invite_code: inviteCode,
+        created_by: userId,
+        created_at: new Date().toISOString()
+      })
+      .select()
+      .single()
+    
+    if (groupError) {
+      console.error('❌ Group creation error:', groupError)
+      throw groupError
+    }
+    
+    if (!newGroup || !newGroup.id) {
+      throw new Error('Failed to create group - no ID returned')
+    }
+    
+    console.log('✅ Group created successfully:', newGroup)
+    
+    // Add the creator as a member of the group
+    console.log('🔄 Adding creator as member:', {
+      groupId: newGroup.id,
+      userId: userId,
+      role: 'admin'
+    })
+    
+    const { data: memberData, error: memberError } = await supabase
+      .from('group_members')
+      .insert({
+        group_id: newGroup.id,
+        user_id: userId,
+        role: 'admin', // Only 'admin' or 'member' are allowed
+        joined_at: new Date().toISOString()
+      })
+      .select()
+    
+    if (memberError) {
+      console.error('❌ Error adding creator as member:', memberError)
+      console.error('❌ Full error details:', JSON.stringify(memberError, null, 2))
+      
+      // This is critical - if we can't add the creator, the flow breaks
+      // Let's try to clean up by deleting the group
+      await supabase.from('groups').delete().eq('id', newGroup.id)
+      throw new Error(`Failed to add you as group member: ${memberError.message || 'Unknown error'}`)
+    }
+    
+    console.log('✅ Creator added as member successfully:', memberData)
+    
+    // Verify the membership was created
+    const { data: verifyMembership, error: verifyError } = await supabase
+      .from('group_members')
+      .select('*')
+      .eq('group_id', newGroup.id)
+      .eq('user_id', userId)
+      .single()
+    
+    if (verifyError || !verifyMembership) {
+      console.error('❌ Failed to verify membership:', verifyError)
+      throw new Error('Group created but membership verification failed')
+    }
+    
+    console.log('✅ Membership verified:', verifyMembership)
+    
+    // Store group info in session storage
+    sessionStorage.setItem('currentGroupId', newGroup.id)
+    sessionStorage.setItem('currentGroupCode', inviteCode)
+    sessionStorage.setItem('currentGroupName', groupName.trim())
+    
+    console.log('🔄 Redirecting to group code page...')
+    
+    // Redirect to the group code page with the group ID
+    router.push(`/groups/group_code?group_id=${newGroup.id}`)
+  } catch (err: any) {
+    console.error('❌ Error creating group:', err)
+    setError(err.message || 'Failed to create group')
+  } finally {
+    setLoading(false)
+  }
+}
 
   if (initialLoading) {
     return (

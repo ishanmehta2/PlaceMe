@@ -15,7 +15,7 @@ interface UserGroup {
 function GroupCodeContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const groupIdFromUrl = searchParams.get('groupId') // Changed to match other components
+  const groupIdFromUrl = searchParams.get('group_id') // Changed to match other components
   
   const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null)
   const [currentGroup, setCurrentGroup] = useState<UserGroup | null>(null)
