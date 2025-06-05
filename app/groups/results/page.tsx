@@ -90,12 +90,7 @@ export default function Results() {
           >
             Home
           </button>
-          <button
-            onClick={() => router.push('/groups/place_yourself')}
-            className="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition"
-          >
-            New Round
-          </button>
+          
         </div>
       </div>
     </main>
