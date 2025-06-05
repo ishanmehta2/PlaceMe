@@ -217,8 +217,8 @@ export default function ResultsPopup({ isOpen, onClose, groupId, groupName, axis
                   {view === 'self'
                     ? `${results.selfPlaced.length} member${results.selfPlaced.length !== 1 ? 's' : ''} placed themselves`
                     : results.guessed.length > 0
-                      ? `${results.guessed[0].individualGuesses.length} member${results.guessed[0].individualGuesses.length !== 1 ? 's' : ''} guessed where you are`
-                      : 'No one has guessed your position yet'}
+                      ? `${results.guessed[0].individualGuesses.length} guess${results.guessed[0].individualGuesses.length !== 1 ? 'es' : ''} for other members' positions`
+                      : 'No one has guessed anyone else\'s position yet'}
                 </p>
               </div>
 
@@ -228,7 +228,7 @@ export default function ResultsPopup({ isOpen, onClose, groupId, groupName, axis
                   <p className="text-lg text-gray-600 mb-4">
                     {view === 'self'
                       ? 'No self-placements found for this axis'
-                      : 'No one has guessed your position yet'}
+                      : 'No one has guessed anyone else\'s position yet'}
                   </p>
                 </div>
               ) : (

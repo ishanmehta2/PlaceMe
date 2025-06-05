@@ -207,6 +207,12 @@ export default function PlaceYourself() {
                 <div>Active: {dailyAxis.is_active ? 'Yes' : 'No'}</div>
               </div>
             )}
+            {/* Show current token position */}
+            <div className="mt-2 text-xs text-gray-500">
+              <div className="font-medium">Current Position:</div>
+              <div>x: {positions['user-token'].x.toFixed(3)}</div>
+              <div>y: {positions['user-token'].y.toFixed(3)}</div>
+            </div>
           </div>
 
           {/* Header */}

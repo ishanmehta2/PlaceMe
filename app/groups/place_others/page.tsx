@@ -167,6 +167,14 @@ export default function PlaceOthers() {
           <div className="mt-2 text-xs text-gray-500">
             <div>Axis ID: {dailyAxis.id}</div>
             <div>Generated: {dailyAxis.date_generated}</div>
+            <div className="mt-1">
+              <div className="font-medium">Token Positions:</div>
+              {tokens.map((token, index) => (
+                <div key={index} className="ml-2">
+                  {token.firstName}: {token.position !== undefined ? `(${token.position.x.toFixed(2)}, ${token.position.y.toFixed(2)})` : 'Not placed'}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 

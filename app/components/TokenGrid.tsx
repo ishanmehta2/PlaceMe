@@ -44,7 +44,7 @@ export function TokenGrid({ tokens, onPositionChange, onPlacementStatusChange, a
   // Initialize positions from tokens
   const initialPositions: TokenPositions = tokens.reduce((acc, token) => ({
     ...acc,
-    [token.id]: token.position
+    [token.id]: token.position || { x: 0.5, y: 0.5 } // Default to center if no position
   }), {})
 
   const {
@@ -69,7 +69,7 @@ export function TokenGrid({ tokens, onPositionChange, onPlacementStatusChange, a
     onPlacementStatusChange?.(hasUnplacedTokens)
   }, [positions, tokens, initialPositions, onPlacementStatusChange])
 
-  // Notify parent of position changes
+  // Notify parent of position changes only on drag end
   const handleDragEndWithCallback = (event: any) => {
     handleDragEnd(event)
     if (onPositionChange && event.active) {
