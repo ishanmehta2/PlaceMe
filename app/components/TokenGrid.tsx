@@ -2,7 +2,7 @@ import { DndContext } from '@dnd-kit/core'
 import { DraggableToken } from './DraggableToken'
 import Axis from './Axis'
 import { useDragAndDrop } from '../hooks/useDragAndDrop'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 interface Position {
   x: number
@@ -70,11 +70,23 @@ export function TokenGrid({ tokens, onPositionChange, onPlacementStatusChange, a
   // Notify parent of position changes
   const handleDragEndWithCallback = (event: any) => {
     handleDragEnd(event)
-    if (onPositionChange && event.active) {
-      const tokenId = event.active.id
-      onPositionChange(tokenId, positions[tokenId])
-    }
   }
+
+  // Call onPositionChange when positions change, but only if the position actually changed
+  const lastPositions = useRef<{[id: string]: Position}>({})
+
+  useEffect(() => {
+    if (onPositionChange) {
+      tokens.forEach(token => {
+        const prev = lastPositions.current[token.id]
+        const curr = positions[token.id]
+        if (!prev || prev.x !== curr.x || prev.y !== curr.y) {
+          onPositionChange(token.id, curr)
+          lastPositions.current[token.id] = curr
+        }
+      })
+    }
+  }, [positions, tokens, onPositionChange])
 
   return (
     <DndContext 

@@ -301,23 +301,29 @@ export const useGroupWorkflow = () => {
   }
 
   // Handle position changes for place others
-  // Positions will be recieved as a value 0 to 300-TOKEN_SIZE
-  // We need to convert this to a value 0 to 1
   const handlePositionChange = async (tokenId: string, position: Position) => {
     try {
-      // Convert position from pixels to percentage
-      const percentX = position.x / (300 - 35)
-      const percentY = position.y / (300 - 35)
+      // Ensure position values are within bounds
+      const boundedX = Math.max(0, Math.min(position.x, 300 - 35))
+      const boundedY = Math.max(0, Math.min(position.y, 300 - 35))
       
-      setTokens(prevTokens => 
-        prevTokens.map(token => 
+      // Convert position from pixels to percentage
+      const percentX = boundedX / (300 - 35)
+      const percentY = boundedY / (300 - 35)
+      
+      console.log(`📍 Raw position for ${tokenId}:`, position)
+      console.log(`📍 Bounded position for ${tokenId}:`, { x: boundedX, y: boundedY })
+      console.log(`📍 Final percentage for ${tokenId}:`, { x: percentX, y: percentY })
+      
+      setTokens(prevTokens => {
+        const newTokens = prevTokens.map(token => 
           token.id === tokenId 
             ? { ...token, position: { x: percentX, y: percentY } }
             : token
         )
-      )
-      
-      console.log(`📍 Updated position for ${tokenId}:`, { x: percentX, y: percentY })
+        console.log('📍 Updated tokens:', newTokens)
+        return newTokens
+      })
     } catch (err: any) {
       console.error('Error updating position:', err)
       setError(err.message || 'Failed to update position')
