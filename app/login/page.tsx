@@ -110,7 +110,7 @@ export default function Login() {
       
       // Always route to Place Yourself first, even if no group
       // The Place Yourself component will handle redirecting if no group is found
-      router.push('/groups/place_yourself')
+      router.push('/home')
     } catch (err: any) {
       console.error('Login error:', err)
       setError(err.message || 'Failed to login')

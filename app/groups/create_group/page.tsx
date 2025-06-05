@@ -14,6 +14,73 @@ function generateGroupCode() {
   return code
 }
 
+// Function to create initial axis for a new group
+const createInitialAxisForGroup = async (groupId: string): Promise<boolean> => {
+  try {
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    
+    console.log('🆕 Creating initial axis for new group:', groupId);
+    
+    // Check if axis already exists for today (shouldn't happen for new groups, but safety check)
+    const { data: existingAxis, error: existingError } = await supabase
+      .from('axes')
+      .select('id')
+      .eq('group_id', groupId)
+      .eq('date_generated', today)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (existingError) {
+      console.error('Error checking existing axis:', existingError);
+      return false;
+    }
+
+    if (existingAxis) {
+      console.log('✅ Axis already exists for this group today:', existingAxis.id);
+      return true;
+    }
+
+    // Import axis generation functions dynamically
+    const { getTwoDifferentAxisPairs } = await import('../../data/axisPairs');
+    
+    // Generate fresh axis pairs for the new group
+    const { vertical: verticalPair, horizontal: horizontalPair } = getTwoDifferentAxisPairs();
+
+    console.log('✨ Generated axis pairs for new group:');
+    console.log('  Vertical:', verticalPair.left, 'vs', verticalPair.right);
+    console.log('  Horizontal:', horizontalPair.left, 'vs', horizontalPair.right);
+
+    // Insert new axis into database
+    const { data: newAxis, error: insertError } = await supabase
+      .from('axes')
+      .insert({
+        group_id: groupId,
+        vertical_axis_pair_id: verticalPair.id,
+        horizontal_axis_pair_id: horizontalPair.id,
+        left_label: horizontalPair.left,
+        right_label: horizontalPair.right,
+        top_label: verticalPair.left,
+        bottom_label: verticalPair.right,
+        date_generated: today,
+        is_active: true
+      })
+      .select('*')
+      .single();
+
+    if (insertError) {
+      console.error('❌ Error creating initial axis for group:', insertError);
+      return false;
+    }
+
+    console.log('✅ Successfully created initial axis for group:', newAxis.id);
+    return true;
+    
+  } catch (err: any) {
+    console.error('❌ Error in createInitialAxisForGroup:', err);
+    return false;
+  }
+}
+
 export default function CreateGroup() {
   const router = useRouter()
   const [groupName, setGroupName] = useState('')
@@ -178,6 +245,18 @@ export default function CreateGroup() {
       }
       
       console.log('✅ Membership verified:', verifyMembership)
+      
+      // Create initial axis for the new group
+      console.log('🎯 Creating initial axis for new group...')
+      const axisCreated = await createInitialAxisForGroup(newGroup.id)
+      
+      if (!axisCreated) {
+        console.warn('⚠️ Failed to create initial axis, but continuing with group creation')
+        // Don't fail the entire group creation if axis creation fails
+        // The home page will handle creating an axis later if needed
+      } else {
+        console.log('✅ Initial axis created successfully for new group')
+      }
       
       // Store group info in session storage
       sessionStorage.setItem('currentGroupId', newGroup.id)
