@@ -205,7 +205,10 @@ export default function PlaceOthers() {
             {/* Token Grid for placing others */}
             <div className="space-y-6">
               <TokenGrid
-                tokens={tokens}
+                tokens={tokens.map(token => ({
+                  ...token,
+                  firstName: token.firstName.split(' ')[0]
+                }))}
                 onPositionChange={handlePositionChange}
                 onPlacementStatusChange={setHasUnplacedTokens}
                 axisLabels={dailyAxis.labels}

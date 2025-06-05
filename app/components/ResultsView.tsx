@@ -35,11 +35,67 @@ function getUserColor(userId: string): string {
   return COLORS[Math.abs(hash) % COLORS.length];
 }
 
+// Type definitions
+interface Position {
+  x: number;
+  y: number;
+}
+
+interface TokenPlacement {
+  user_id: string;
+  username: string;
+  avatar_url: string;
+  x: number;
+  y: number;
+}
+
+interface IndividualGuess {
+  guesser_name: string;
+  guesser_avatar: string;
+  position: Position;
+}
+
+interface GuessedResult {
+  user_id: string;
+  username: string;
+  avatar_url: string;
+  averagePosition: Position;
+  individualGuesses: IndividualGuess[];
+}
+
+interface AxisLabels {
+  top: string;
+  bottom: string;
+  left: string;
+  right: string;
+  labelColors: {
+    top?: string;
+    bottom?: string;
+    left?: string;
+    right?: string;
+  };
+}
+
+interface DailyAxis {
+  id: string;
+  date_generated: string;
+  top_label: string;
+  bottom_label: string;
+  left_label: string;
+  right_label: string;
+  labels: AxisLabels;
+}
+
+interface Results {
+  selfPlaced: TokenPlacement[];
+  guessed: GuessedResult[];
+}
+
 interface ResultsViewProps {
   groupId: string | null
   groupName: string
-  dailyAxis: any // TODO: Type this properly
-  results: any // TODO: Type this properly
+  dailyAxis: DailyAxis | null
+  results: Results
   loading: boolean
   error: string | null
   onClose?: () => void
@@ -101,8 +157,8 @@ export default function ResultsView({
   const getSelectedTokenInfo = () => {
     if (!selectedToken) return null
     return view === 'self'
-      ? results.selfPlaced.find(t => t.user_id === selectedToken)
-      : results.guessed.find(g => g.user_id === selectedToken)
+      ? results.selfPlaced.find((t: TokenPlacement) => t.user_id === selectedToken)
+      : results.guessed.find((g: GuessedResult) => g.user_id === selectedToken)
   }
 
   const selectedTokenInfo = getSelectedTokenInfo()
@@ -211,7 +267,12 @@ export default function ResultsView({
         <div className="relative">
           <Axis
             size={AXIS_SIZE}
-            labels={dailyAxis.labels}
+            labels={{
+              top: dailyAxis.labels.top,
+              bottom: dailyAxis.labels.bottom,
+              left: dailyAxis.labels.left,
+              right: dailyAxis.labels.right
+            }}
             labelColors={dailyAxis.labels.labelColors}
           >
             <div
@@ -220,9 +281,9 @@ export default function ResultsView({
             />
 
             {/* Render all tokens at once, controlling their visibility and position based on view */}
-            {results.selfPlaced.map(token => {
+            {results.selfPlaced.map((token: TokenPlacement) => {
               // Find the corresponding guessed result if it exists
-              const guessedResult = results.guessed.find(g => g.user_id === token.user_id)
+              const guessedResult = results.guessed.find((g: GuessedResult) => g.user_id === token.user_id)
               
               // Determine the position based on current view
               const position = view === 'self' 
@@ -244,7 +305,9 @@ export default function ResultsView({
                     transform: 'translate(-50%, -50%)',
                     transition: 'all 0.5s ease-in-out',
                     zIndex: selectedToken === token.user_id ? 15 : 10,
-                    opacity: selectedToken && selectedToken !== token.user_id ? 0.6 : 1,
+                    opacity: selectedToken && selectedToken !== token.user_id 
+                      ? (view === 'guessed' ? 0 : 0.6)
+                      : selectedToken === token.user_id && view === 'guessed' ? 0.6 : 1,
                     cursor: 'pointer',
                   }}
                   onClick={(e) => {
@@ -254,7 +317,7 @@ export default function ResultsView({
                 >
                   <Token
                     id={token.user_id}
-                    name={token.username}
+                    name={token.username.split(' ')[0]}
                     x={0}
                     y={0}
                     color={getUserColor(token.user_id)}
@@ -270,32 +333,51 @@ export default function ResultsView({
             {/* Render individual guesses only when a token is selected */}
             {selectedToken && view === 'guessed' && 
               results.guessed
-                .find(g => g.user_id === selectedToken)
-                ?.individualGuesses.map((guess, index) => (
-                  <div
-                    key={`guess-${selectedToken}-${index}`}
-                    style={{
-                      position: 'absolute',
-                      left: `${guess.position.x}%`,
-                      top: `${guess.position.y}%`,
-                      transform: 'translate(-50%, -50%)',
-                      zIndex: 20,
-                      opacity: 0.8,
-                      transition: 'opacity 0.3s ease-in-out',
-                    }}
-                  >
-                    <Token
-                      id={`guess-${selectedToken}-${index}`}
-                      name={`placed by ${guess.guesser_name}`}
-                      x={0}
-                      y={0}
-                      color={getUserColor(selectedToken)}
-                      size={GUESS_TOKEN_SIZE}
-                      imageUrl={guess.guesser_avatar}
-                      showTooltip={true}
-                    />
-                  </div>
-                ))
+                .find((g: GuessedResult) => g.user_id === selectedToken)
+                ?.individualGuesses.map((guess: IndividualGuess, index: number) => {
+                  // Calculate text width using a temporary span
+                  const textWidth = (() => {
+                    const span = document.createElement('span');
+                    span.style.visibility = 'hidden';
+                    span.style.position = 'absolute';
+                    span.style.whiteSpace = 'nowrap';
+                    span.style.fontSize = '14px'; // Match the tooltip font size
+                    span.textContent = `placed by ${guess.guesser_name.split(' ')[0]}`;
+                    document.body.appendChild(span);
+                    const width = span.offsetWidth;
+                    document.body.removeChild(span);
+                    return width;
+                  })();
+                  
+                  // Calculate horizontal offset
+                  const horizontalOffset = Math.max(0, (textWidth - GUESS_TOKEN_SIZE) / 2);
+                  
+                  return (
+                    <div
+                      key={`guess-${selectedToken}-${index}`}
+                      style={{
+                        position: 'absolute',
+                        left: `${guess.position.x}%`,
+                        top: `${guess.position.y}%`,
+                        transform: `translate(calc(-${horizontalOffset}px), -50%)`,
+                        zIndex: 20,
+                        opacity: 1,
+                        transition: 'opacity 0.3s ease-in-out',
+                      }}
+                    >
+                      <Token
+                        id={`guess-${selectedToken}-${index}`}
+                        name={`placed by ${guess.guesser_name.split(' ')[0]}`}
+                        x={0}
+                        y={0}
+                        color={getUserColor(selectedToken)}
+                        size={GUESS_TOKEN_SIZE}
+                        imageUrl={guess.guesser_avatar}
+                        showTooltip={true}
+                      />
+                    </div>
+                  );
+                })
             }
           </Axis>
         </div>

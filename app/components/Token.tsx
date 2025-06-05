@@ -68,7 +68,7 @@ export default function Token({
         left: x,
         top: y,
         zIndex: 2,
-        transform: size < 30 ? 'translate(-30%, 6%)' : 'none',
+        // transform: size < 30 ? 'translate(-30%, 6%)' : 'none',
       }}
     >
       <div
