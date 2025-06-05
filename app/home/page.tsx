@@ -6,7 +6,7 @@ import { supabase } from '../../lib/auth/supabase'
 import { useComments } from '../hooks/useComments'
 import Axis from '../components/Axis'
 import ResultsPopup from '../components/ResultsPopup' // NEW: Import the popup component
-import { FaCrown } from "react-icons/fa";
+import { FaCrown, FaTrash } from "react-icons/fa";
 import { ChevronDownIcon } from '@heroicons/react/24/solid'
 import { getUserAvatar } from '../lib/avatars'
 
@@ -81,6 +81,11 @@ export default function Home() {
   const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null)
   const [activeGroupCreator, setActiveGroupCreator] = useState<string | null>(null) // Creator ID
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
+
+  // NEW: Delete axis state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [axisToDelete, setAxisToDelete] = useState<AxisResults | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // NEW: Results popup state
   const [resultsPopupOpen, setResultsPopupOpen] = useState(false)
@@ -178,12 +183,109 @@ export default function Home() {
     router.push('/groups/place_yourself')
   }
 
+  // NEW: Handle delete axis click (moderators only)
+  const handleDeleteAxisClick = (e: React.MouseEvent, axis: AxisResults) => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    // Only allow moderators to delete
+    if (currentUser?.id !== activeGroupCreator) return
+    
+    setAxisToDelete(axis)
+    setShowDeleteConfirm(true)
+  }
+
+  // NEW: Confirm delete axis
+  const confirmDeleteAxis = async () => {
+    if (!axisToDelete || !activeGroup || !currentUser) return
+    
+    try {
+      setIsDeleting(true)
+      console.log('🗑️ Deleting axis:', axisToDelete.axis_id)
+      
+      // Delete all related data for this axis
+      // 1. Delete place_yourself records
+      const { error: deleteSelfError } = await supabase
+        .from('place_yourself')
+        .delete()
+        .eq('axis_id', axisToDelete.axis_id)
+      
+      if (deleteSelfError) {
+        console.error('Error deleting place_yourself records:', deleteSelfError)
+        throw deleteSelfError
+      }
+      
+      // 2. Delete place_others records
+      const { error: deleteOthersError } = await supabase
+        .from('place_others')
+        .delete()
+        .eq('axis_id', axisToDelete.axis_id)
+      
+      if (deleteOthersError) {
+        console.error('Error deleting place_others records:', deleteOthersError)
+        throw deleteOthersError
+      }
+      
+      // 3. Delete comments for this axis
+      const { error: deleteCommentsError } = await supabase
+        .from('comments')
+        .delete()
+        .eq('axis_id', axisToDelete.axis_id)
+      
+      if (deleteCommentsError) {
+        console.error('Error deleting comments:', deleteCommentsError)
+        // Continue anyway - comments are not critical
+      }
+      
+      // 4. Finally, delete the axis itself
+      const { error: deleteAxisError } = await supabase
+        .from('axes')
+        .delete()
+        .eq('id', axisToDelete.axis_id)
+      
+      if (deleteAxisError) {
+        console.error('Error deleting axis:', deleteAxisError)
+        throw deleteAxisError
+      }
+      
+      console.log('✅ Successfully deleted axis and all related data')
+      
+      // Refresh the axes list
+      if (currentUser) {
+        await fetchHistoricalAxes(activeGroup, currentUser.id)
+      }
+      
+      // Close any open comments if they were for this axis
+      if (selectedAxis?.axis_id === axisToDelete.axis_id) {
+        setSelectedToken(null)
+        setSelectedAxis(null)
+      }
+      
+    } catch (err: any) {
+      console.error('❌ Error deleting axis:', err)
+      alert(`Failed to delete axis: ${err.message || 'Unknown error'}`)
+    } finally {
+      setIsDeleting(false)
+      setShowDeleteConfirm(false)
+      setAxisToDelete(null)
+    }
+  }
+
+  // NEW: Cancel delete axis
+  const cancelDeleteAxis = () => {
+    setShowDeleteConfirm(false)
+    setAxisToDelete(null)
+  }
+
   const getSelectedTokenInfo = () => {
     if (!selectedToken || !selectedAxis) return null
     return selectedAxis.members.find(m => m.id === selectedToken)
   }
 
   const selectedTokenInfo = getSelectedTokenInfo()
+  
+  // Check if current user is moderator
+  const isModerator = currentUser?.id === activeGroupCreator
   
   // Fetch user and their groups on mount
   useEffect(() => {
@@ -624,22 +726,7 @@ export default function Home() {
                 </button>
               )}
 
-              {currentUser?.id === activeGroupCreator && (
-                <button
-                  className="px-6 py-3 text-base w-full flex items-center justify-between hover:bg-gray-100 rounded-b-xl"
-                  onClick={() => {
-                    setPlusDropdownOpen(false);
-                    router.push(`/mod/all_axes?groupId=${activeGroup}`);
-                  }}
-                >
-                  <span className="truncate text-left flex-grow">Manage Axes</span>
-                  <FaCrown
-                    className="text-yellow-500 text-s ml-2 flex-shrink-0"
-                    title="Moderator"
-                    style={{ minWidth: 14, minHeight: 14 }}
-                  />
-                </button>
-              )}
+              
             </div>
           )}
         </div>
@@ -826,6 +913,16 @@ export default function Home() {
                       ACTIVE
                     </span>
                   )}
+                  {/* NEW: Delete button for moderators */}
+                  {isModerator && !axis.is_locked && (
+                    <button
+                      onClick={(e) => handleDeleteAxisClick(e, axis)}
+                      className="ml-2 p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                      title="Delete this axis (Moderator only)"
+                    >
+                      <FaTrash className="w-3 h-3" />
+                    </button>
+                  )}
                 </div>
                 
                 {/* UPDATED: Different display based on lock status */}
@@ -993,6 +1090,50 @@ export default function Home() {
           </>
         )}
       </div>
+
+      {/* NEW: Delete Axis Confirmation */}
+      {showDeleteConfirm && axisToDelete && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50"
+          onClick={cancelDeleteAxis}
+        >
+          <div
+            className="bg-white p-6 rounded-xl shadow-lg w-80 text-center"
+            onClick={(e) => e.stopPropagation()}
+            style={{ fontFamily: 'Arial Black, Arial, sans-serif' }}
+          >
+            <h2 className="text-xl font-bold mb-4 text-red-600">⚠️ Delete Axis?</h2>
+            <p className="mb-4">
+              Are you sure you want to delete the axis from{' '}
+              <strong>{formatDate(axisToDelete.date_generated, historicalAxes.findIndex(a => a.axis_id === axisToDelete.axis_id))}?</strong>
+            </p>
+            <p className="mb-6 text-sm text-red-600">
+              This will permanently delete:
+              <br />• All member placements
+              <br />• All comments
+              <br />• The entire axis
+              <br /><br />
+              <strong>This action cannot be undone!</strong>
+            </p>
+            <div className="flex justify-center gap-4">
+              <button
+                onClick={cancelDeleteAxis}
+                className="px-4 py-2 rounded-lg border border-black hover:bg-gray-100"
+                disabled={isDeleting}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteAxis}
+                disabled={isDeleting}
+                className="px-4 py-2 rounded-lg bg-red-600 border border-red-600 text-white font-bold hover:bg-red-700 disabled:opacity-50"
+              >
+                {isDeleting ? 'Deleting...' : 'Delete Forever'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Leave Group Confirmation */}
       {showLeaveConfirm && (
