@@ -123,6 +123,166 @@ export interface AxisPair {
       id: 'lifestyle',
       left: 'Wild and free',
       right: 'Calm and safe'
+    },
+    {
+      id: 'tone',
+      left: 'Funny',
+      right: 'Serious'
+    },
+    {
+      id: 'volume',
+      left: 'Loud',
+      right: 'Quiet'
+    },
+    {
+      id: 'reality-tv',
+      left: 'Love Island',
+      right: 'Survivor'
+    },
+    {
+      id: 'board-games',
+      left: 'Checkers',
+      right: 'Chess'
+    },
+    {
+      id: 'romance-style',
+      left: 'Secret Sneaky Link',
+      right: 'Makeout in Public'
+    },
+    {
+      id: 'drinkware',
+      left: 'Waterbottle',
+      right: 'Flask'
+    },
+    {
+      id: 'substances',
+      left: 'Mariajuana',
+      right: 'Alcohol'
+    },
+    {
+      id: 'rat-vibe',
+      left: 'Rats are cute',
+      right: 'Set up a trap'
+    },
+    {
+      id: 'bathroom-humor',
+      left: 'Urination',
+      right: 'Defecation'
+    },
+    {
+      id: 'intoxication',
+      left: 'Green Out',
+      right: 'Black Out'
+    },
+    {
+      id: 'shopping-style',
+      left: 'Lets Thrift',
+      right: 'Lets go to the mall'
+    },
+    {
+      id: 'coffee-shop',
+      left: 'COHO',
+      right: 'Starbucks'
+    },
+    {
+      id: 'party-type',
+      left: 'Kickback',
+      right: 'Rager'
+    },
+    {
+      id: 'sketch-shows',
+      left: 'SNL',
+      right: 'I Think You Should Leave'
+    },
+    {
+      id: 'keyboard-sound',
+      left: 'Typewriter',
+      right: 'Silent Keyboard'
+    },
+    {
+      id: 'laptop-brand',
+      left: 'DELL',
+      right: 'Mac'
+    },
+    {
+      id: 'hair-holder',
+      left: 'Claw clip',
+      right: 'Hairtie'
+    },
+    {
+      id: 'men-hairstyle',
+      left: 'Man Bun',
+      right: 'Buzz Cut'
+    },
+    {
+      id: 'nervous-reaction',
+      left: 'Nervous Shitter',
+      right: 'Nervous Talker'
+    },
+    {
+      id: 'makeup-style',
+      left: 'Fake Eyelashes',
+      right: 'Natural Face'
+    },
+    {
+      id: 'cosmetic-choice',
+      left: 'Botox',
+      right: 'Lipfiller'
+    },
+    {
+      id: 'priorities',
+      left: 'Where\'s my vape',
+      right: 'Where\'s my iPhone'
+    },
+    {
+      id: 'aesthetic-type',
+      left: 'iPhone Face',
+      right: 'Renaissance Face'
+    },
+    {
+      id: 'cooking-role',
+      left: 'Cooks',
+      right: 'Is Cooked'
+    },
+    {
+      id: 'worldview',
+      left: 'Physics is everything',
+      right: 'Vibes are everything'
+    },
+    {
+      id: 'eating-style',
+      left: 'American eater (10 min)',
+      right: 'European eater (8+ hours)'
+    },
+    {
+      id: 'bag-choice',
+      left: 'Breifcase',
+      right: 'Backpack'
+    },
+    {
+      id: 'science-role',
+      left: 'Biologist',
+      right: 'Biology exists?'
+    },
+    {
+      id: 'toilet-culture',
+      left: 'Toilet Tik Tok',
+      right: 'Toilet Fliers'
+    },
+    {
+      id: 'footwear',
+      left: 'Clogs',
+      right: 'Jordan\'s'
+    },
+    {
+      id: 'sugar-dynamics',
+      left: 'Sugar Momma',
+      right: 'Sugar Baby'
+    },
+    {
+      id: 'comedy-engagement',
+      left: 'Watch Stand Up',
+      right: 'Do Stand Up'
     }
   ]
   
