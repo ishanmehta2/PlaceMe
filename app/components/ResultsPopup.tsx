@@ -15,7 +15,7 @@ interface ResultsPopupProps {
 }
 
 export default function ResultsPopup({ isOpen, onClose, groupId, groupName, axisId, axisDate }: ResultsPopupProps) {
-  const { loading, error, selectedGroup, dailyAxis, results } = useResults()
+  const { loading, error, selectedGroup, dailyAxis, results } = useResults(axisId)
 
   if (!isOpen) return null
 

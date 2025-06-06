@@ -164,6 +164,7 @@ export default function Home() {
     sessionStorage.setItem('workflowGroupId', activeGroup)
     sessionStorage.setItem('workflowGroupName', groupName)
     sessionStorage.setItem('workflowGroupCode', userGroups.find(g => g.id === activeGroup)?.invite_code || '')
+    sessionStorage.setItem('selectedAxisId', axis.axis_id)
     
     // Set the selected axis and open popup
     setSelectedResultsAxis(axis)

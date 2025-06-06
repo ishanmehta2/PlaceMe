@@ -91,7 +91,7 @@ const getMemberColor = (index: number): string => {
   return colors[index % colors.length]
 }
 
-export const useResults = () => {
+export const useResults = (axisId?: string) => {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -104,6 +104,7 @@ export const useResults = () => {
   })
 
   useEffect(() => {
+    console.log('🔄 useResults effect triggered with axisId:', axisId)
     const fetchResults = async () => {
       try {
         setLoading(true)
@@ -124,6 +125,13 @@ export const useResults = () => {
         const groupId = sessionStorage.getItem('workflowGroupId')
         const groupName = sessionStorage.getItem('workflowGroupName')
         const groupCode = sessionStorage.getItem('workflowGroupCode')
+        const storedAxisId = sessionStorage.getItem('selectedAxisId')
+        
+        console.log('📊 Session storage values:')
+        console.log('   - Group ID:', groupId)
+        console.log('   - Group Name:', groupName)
+        console.log('   - Stored Axis ID:', storedAxisId)
+        console.log('   - Prop Axis ID:', axisId)
         
         if (!groupId) {
           setError('No active workflow group. Please start from place yourself.')
@@ -135,30 +143,41 @@ export const useResults = () => {
           name: groupName,
           invite_code: groupCode
         })
-        
-        console.log('📊 Loading results for group:', groupName, '(ID:', groupId, ')')
 
-        // STEP 1: Get the current daily axis for this group
-        const today = new Date().toISOString().split('T')[0]
-        const { data: axisData, error: axisError } = await supabase
+        // STEP 1: Get the axis data - either by ID or today's date
+        let axisQuery = supabase
           .from('axes')
           .select('*')
           .eq('group_id', groupId)
-          .eq('date_generated', today)
-          .eq('is_active', true)
-          .maybeSingle()
+
+        // Use the provided axisId, stored axisId, or fall back to today's date
+        const targetAxisId = axisId || storedAxisId
+        if (targetAxisId) {
+          console.log('🎯 Using specific axis ID:', targetAxisId)
+          axisQuery = axisQuery.eq('id', targetAxisId)
+        } else {
+          console.log('📅 No specific axis ID, using today\'s date')
+          const today = new Date().toISOString().split('T')[0]
+          axisQuery = axisQuery
+            .eq('date_generated', today)
+            .eq('is_active', true)
+        }
+
+        const { data: axisData, error: axisError } = await axisQuery.maybeSingle()
 
         if (axisError) {
-          console.error('Error fetching daily axis:', axisError)
-          setError('Failed to load daily axis data')
+          console.error('❌ Error fetching axis:', axisError)
+          setError('Failed to load axis data')
           return
         }
 
         if (!axisData) {
-          console.warn('No daily axis found for today')
-          setError('No axis data found for today. Please start a new workflow.')
+          console.warn('⚠️ No axis found')
+          setError('No axis data found. Please try again.')
           return
         }
+
+        console.log('✅ Found axis data:', axisData)
 
         // Process axis data
         const processedAxis: DailyAxis = {
@@ -178,7 +197,6 @@ export const useResults = () => {
             left: axisData.left_label,
             right: axisData.right_label,
             labelColors: {
-              // Default colors - could be enhanced to store these in database
               top: 'rgba(251, 207, 232, 0.95)', // Pink
               bottom: 'rgba(167, 243, 208, 0.95)', // Green
               left: 'rgba(221, 214, 254, 0.95)', // Purple
@@ -188,30 +206,36 @@ export const useResults = () => {
         }
 
         setDailyAxis(processedAxis)
-        console.log('✅ Loaded daily axis:', processedAxis.id)
+        console.log('✅ Processed axis:', processedAxis.id)
 
         // STEP 2: Fetch self placements for this specific axis
+        console.log('🔍 Fetching self placements for axis:', processedAxis.id)
         const { data: selfPlacements, error: selfError } = await supabase
           .from('place_yourself')
           .select('*')
           .eq('group_id', groupId)
-          .eq('axis_id', processedAxis.id) // Filter by specific axis
+          .eq('axis_id', processedAxis.id)
           .order('created_at', { ascending: false })
         
         if (selfError) {
-          console.error('Error fetching self placements:', selfError)
+          console.error('❌ Error fetching self placements:', selfError)
+        } else {
+          console.log('✅ Found self placements:', selfPlacements?.length || 0)
         }
         
         // STEP 3: Fetch guessed placements for this specific axis
+        console.log('🔍 Fetching guessed placements for axis:', processedAxis.id)
         const { data: guessedPlacements, error: guessedError } = await supabase
           .from('place_others')
           .select('*')
           .eq('group_id', groupId)
-          .eq('axis_id', processedAxis.id) // Filter by specific axis
+          .eq('axis_id', processedAxis.id)
           .order('created_at', { ascending: false })
         
         if (guessedError) {
-          console.error('Error fetching guessed placements:', guessedError)
+          console.error('❌ Error fetching guessed placements:', guessedError)
+        } else {
+          console.log('✅ Found guessed placements:', guessedPlacements?.length || 0)
         }
 
         // Filter out self-placements and keep only most recent placement for each placer/placed pair
@@ -336,7 +360,7 @@ export const useResults = () => {
         console.log('   - Guessed placements:', guessedResult.length)
         
       } catch (err: any) {
-        console.error('Error fetching results:', err)
+        console.error('❌ Error in fetchResults:', err)
         setError(err.message || 'Failed to load results')
       } finally {
         setLoading(false)
@@ -344,14 +368,14 @@ export const useResults = () => {
     }
     
     fetchResults()
-  }, [router])
+  }, [router, axisId])
 
   return {
     loading,
     error,
     currentUserId,
     selectedGroup,
-    dailyAxis, // Now returns the actual daily axis data
+    dailyAxis,
     results
   }
 }
