@@ -965,7 +965,7 @@ export default function Home() {
                       <Axis
                         labels={axis.labels}
                         labelColors={axis.labels.labelColors}
-                        size={500}
+                        size={300}
                         tokenSize={36}
                         tokens={axis.members
                           .filter((member, memberIndex, self) => 
