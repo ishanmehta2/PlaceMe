@@ -67,7 +67,7 @@ export const useDailyAxis = (groupId: string | null) => {
       setLoading(true)
       setError(null)
   
-      // NEW: Check if we're targeting a specific axis
+      // FIXED: Check if we're targeting a specific axis but don't clear it yet
       const targetAxisId = sessionStorage.getItem('targetAxisId')
       
       if (targetAxisId) {
@@ -90,6 +90,7 @@ export const useDailyAxis = (groupId: string | null) => {
           const processedAxis = processAxisFromDatabase(targetAxis)
           setDailyAxis(processedAxis)
           setLoading(false)
+          // FIXED: Don't clear targetAxisId here - let the workflow manage it
           return
         }
       }
@@ -213,24 +214,40 @@ export const useDailyAxis = (groupId: string | null) => {
     } catch (err: any) {
       console.error('❌ Error generating and saving axes:', err)
       
-      // FALLBACK: Create in-memory axes if database fails
-      const { vertical, horizontal } = getTwoDifferentAxisPairs()
-      const fallbackAxis: DailyAxis = {
-        id: `fallback_${Date.now()}`,
-        group_id: grpId,
-        vertical_axis_pair_id: vertical.id,
-        horizontal_axis_pair_id: horizontal.id,
-        left_label: horizontal.left,
-        right_label: horizontal.right,
-        top_label: vertical.left,
-        bottom_label: vertical.right,
-        date_generated: today,
-        is_active: true,
-        labels: combineAxisLabels(vertical, horizontal)
+      // FALLBACK: Try to save a simple axis to database instead of using in-memory fallback
+      console.log('🔄 Attempting fallback database save...')
+      try {
+        const { vertical, horizontal } = getTwoDifferentAxisPairs()
+        
+        // Try a simpler insert without complex constraints
+        const { data: fallbackAxis, error: fallbackError } = await supabase
+          .from('axes')
+          .insert({
+            group_id: grpId,
+            vertical_axis_pair_id: vertical.id,
+            horizontal_axis_pair_id: horizontal.id,
+            left_label: horizontal.left,
+            right_label: horizontal.right,
+            top_label: vertical.left,
+            bottom_label: vertical.right,
+            date_generated: today,
+            is_active: true
+          })
+          .select('*')
+          .single()
+
+        if (fallbackError) {
+          console.error('❌ Fallback database save also failed:', fallbackError)
+          throw new Error('Database is unavailable. Please try again later.')
+        }
+
+        console.log('✅ Fallback database save succeeded:', fallbackAxis.id)
+        const processedAxis = processAxisFromDatabase(fallbackAxis)
+        setDailyAxis(processedAxis)
+      } catch (fallbackErr: any) {
+        console.error('❌ All database operations failed:', fallbackErr)
+        throw new Error('Unable to create or load axes. Please check your connection and try again.')
       }
-      
-      console.log('🔄 Using fallback in-memory axes due to database error')
-      setDailyAxis(fallbackAxis)
     } finally {
       setLoading(false)
     }
@@ -324,9 +341,6 @@ export const useDailyAxis = (groupId: string | null) => {
       setLoading(false)
     }
   }
-
-  // REMOVED: saveAxisToDatabase function - no longer needed since we save immediately
-  // REMOVED: session storage logic - no longer needed since we use database as source of truth
 
   return {
     dailyAxis,

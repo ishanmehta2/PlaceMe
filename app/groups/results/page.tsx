@@ -44,22 +44,22 @@ export default function Results() {
     )
   }
 
-  // Missing group or axis state
-  if (!selectedGroup || !dailyAxis) {
-    return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-[#FFF8E1]">
-        <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded-2xl mb-4">
-          {!selectedGroup ? 'No workflow group found.' : 'No daily axis data found.'} Please start a new workflow.
-        </div>
-        <button
-          onClick={() => router.push('/groups/place_yourself')}
-          className="bg-blue-500 text-white px-6 py-2 rounded-lg"
-        >
-          Start New Workflow
-        </button>
-      </main>
-    )
-  }
+  // // Missing group or axis state
+  // if (!selectedGroup || !dailyAxis) {
+  //   return (
+  //     <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-[#FFF8E1]">
+  //       <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded-2xl mb-4">
+  //         {!selectedGroup ? 'No workflow group found.' : 'No daily axis data found.'} Please start a new workflow.
+  //       </div>
+  //       <button
+  //         onClick={() => router.push('/groups/place_yourself')}
+  //         className="bg-blue-500 text-white px-6 py-2 rounded-lg"
+  //       >
+  //         Start New Workflow
+  //       </button>
+  //     </main>
+  //   )
+  // }
 
   return (
     <main className="flex min-h-screen flex-col items-center pt-8 p-4 bg-[#FFF8E1]">

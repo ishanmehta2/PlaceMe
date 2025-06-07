@@ -134,28 +134,35 @@ function SuggestAxisContent() {
     }
 
     try {
-      console.log('💾 Saving axis recommendation to database...')
+      console.log('💾 Creating suggested axis directly in axes table...')
       
-      // Insert directly into Supabase
+      const today = new Date().toISOString().split('T')[0]
+      
+      // Insert directly into the axes table instead of axis_recommendations
       const { data, error } = await supabase
-        .from('axis_recommendations')
+        .from('axes')
         .insert({
           group_id: currentGroup.id,
-          suggested_by: currentUser.id,
           top_label: topLabel,
           bottom_label: bottomLabel,
           left_label: leftLabel,
-          right_label: rightLabel
+          right_label: rightLabel,
+          date_generated: today,
+          is_active: false,
+          is_suggested: true,
+          suggested_by: currentUser.id,
+          vertical_axis_pair_id: 'suggested',
+          horizontal_axis_pair_id: 'suggested'
         })
         .select()
         .single()
 
       if (error) {
         console.error('Database error:', error)
-        throw new Error('Failed to save axis recommendation')
+        throw new Error('Failed to create suggested axis')
       }
 
-      console.log('✅ Axis recommendation saved:', data.id)
+      console.log('✅ Suggested axis created:', data.id)
       
       // Success! Clear form and redirect
       setTopLabel('')
@@ -169,8 +176,8 @@ function SuggestAxisContent() {
       router.push('/home')
 
     } catch (err: any) {
-      console.error('Error saving recommendation:', err)
-      setError(err.message || 'Failed to save axis recommendation')
+      console.error('Error creating suggested axis:', err)
+      setError(err.message || 'Failed to create suggested axis')
     }
   }
 

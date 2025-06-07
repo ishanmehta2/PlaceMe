@@ -290,7 +290,7 @@ export const useGroupWorkflow = () => {
 
   /**
    * Save self placement - UPDATED for new workflow
-   * No longer needs saveAxisToDatabase function since axes are already in database
+   * No longer clears targetAxisId - that happens after the full workflow
    */
   const saveSelfPlacement = async (
     position: Position, 
@@ -310,10 +310,10 @@ export const useGroupWorkflow = () => {
       console.log('💾 Saving self placement for user:', firstName)
       console.log('📊 Using daily axis:', dailyAxis.id, 'for group:', selectedGroup.name)
 
+      // FIXED: Don't clear targetAxisId here - we still need it for place_others
       const targetAxisId = sessionStorage.getItem('targetAxisId')
       if (targetAxisId) {
-        console.log('🎯 Clearing target axis after placement')
-        sessionStorage.removeItem('targetAxisId')
+        console.log('🎯 Keeping target axis for next step:', targetAxisId)
       }
       
       // Convert position from pixels to percent if needed
@@ -394,7 +394,7 @@ export const useGroupWorkflow = () => {
   }
 
   /**
-   * Save others placements - UPDATED for new workflow
+   * Save others placements - UPDATED to clear targetAxisId after completion
    */
   const saveOthersPlacement = async (dailyAxis: DailyAxis) => {
     if (!selectedGroup || !currentUserId) {
@@ -456,6 +456,13 @@ export const useGroupWorkflow = () => {
         console.log('✅ Successfully saved', placementsToInsert.length, 'others placements')
       } else {
         console.log('ℹ️ No other members to place')
+      }
+
+      // FIXED: Clear targetAxisId now that the workflow is complete
+      const targetAxisId = sessionStorage.getItem('targetAxisId')
+      if (targetAxisId) {
+        console.log('🎯 Clearing target axis after completing workflow:', targetAxisId)
+        sessionStorage.removeItem('targetAxisId')
       }
       
     } catch (err: any) {

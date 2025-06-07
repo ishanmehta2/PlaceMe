@@ -10,19 +10,8 @@ export default function SignUp() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [phone, setPhone] = useState('')
-  const [image, setImage] = useState<File | null>(null)
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null
-    if (file) {
-      setImage(file)
-      const url = URL.createObjectURL(file)
-      setPreviewUrl(url)
-    }
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -38,49 +27,13 @@ export default function SignUp() {
           data: {
             full_name: name,
             phone: phone,
-            // We'd need to store the image separately and just save the URL
           }
         }
       })
 
       if (signUpError) throw signUpError
 
-      // 2. If we have an image, upload it to Supabase Storage
-      if (image) {
-        const fileExt = image.name.split('.').pop()
-        const fileName = `${authData.user?.id}-profile-image.${fileExt}`
-        
-        const { error: uploadError } = await supabase
-          .storage
-          .from('profile-images')
-          .upload(fileName, image)
-          
-        if (uploadError) {
-          console.error('Error uploading profile image:', uploadError)
-          // Continue anyway - the user account is created
-        } else {
-          // Get the public URL for the uploaded image
-          const { data: urlData } = supabase
-            .storage
-            .from('profile-images')
-            .getPublicUrl(fileName)
-            
-          // Update the user's metadata with the profile image URL
-          if (urlData) {
-            const { error: updateError } = await supabase.auth.updateUser({
-              data: { 
-                avatar_url: urlData.publicUrl 
-              }
-            })
-            
-            if (updateError) {
-              console.error('Error updating user profile with image URL:', updateError)
-            }
-          }
-        }
-      }
-
-      // 3. Create a record in the profiles table (if you have one)
+      // 2. Create a record in the profiles table
       const { error: profileError } = await supabase
         .from('profiles')
         .insert([

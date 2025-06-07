@@ -375,11 +375,12 @@ export default function Home() {
 
       // 1️⃣ Get all axes for this group (most recent first, limit to 10)
       const { data: axes, error: axesError } = await supabase
-        .from('axes')
-        .select('*')
-        .eq('group_id', groupId)
-        .order('created_at', { ascending: false })
-        .limit(10);
+          .from('axes')
+          .select('*')
+          .eq('group_id', groupId)
+          .or('is_active.eq.true,is_suggested.eq.true,and(is_active.eq.false,is_suggested.is.null),and(is_active.eq.false,is_suggested.eq.false)')
+          .order('created_at', { ascending: false })
+          .limit(20);
 
       if (axesError) {
         console.error("Error fetching axes:", axesError);

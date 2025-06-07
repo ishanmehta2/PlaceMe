@@ -125,12 +125,16 @@ export const useResults = (axisId?: string) => {
         const groupId = sessionStorage.getItem('workflowGroupId')
         const groupName = sessionStorage.getItem('workflowGroupName')
         const groupCode = sessionStorage.getItem('workflowGroupCode')
-        const storedAxisId = sessionStorage.getItem('selectedAxisId')
+        
+        // FIXED: Check for both possible axis ID keys in session storage
+        const storedAxisId = sessionStorage.getItem('selectedAxisId') || sessionStorage.getItem('targetAxisId')
         
         console.log('📊 Session storage values:')
         console.log('   - Group ID:', groupId)
         console.log('   - Group Name:', groupName)
-        console.log('   - Stored Axis ID:', storedAxisId)
+        console.log('   - Stored Axis ID (selectedAxisId):', sessionStorage.getItem('selectedAxisId'))
+        console.log('   - Stored Axis ID (targetAxisId):', sessionStorage.getItem('targetAxisId'))
+        console.log('   - Final stored axis ID:', storedAxisId)
         console.log('   - Prop Axis ID:', axisId)
         
         if (!groupId) {
@@ -144,23 +148,24 @@ export const useResults = (axisId?: string) => {
           invite_code: groupCode
         })
 
-        // STEP 1: Get the axis data - either by ID or today's date
+        // STEP 1: Get the axis data - prioritize explicit axisId, then stored IDs, then today's date
         let axisQuery = supabase
           .from('axes')
           .select('*')
           .eq('group_id', groupId)
 
-        // Use the provided axisId, stored axisId, or fall back to today's date
+        // Use the provided axisId first, then stored axis IDs, or fall back to today's date
         const targetAxisId = axisId || storedAxisId
         if (targetAxisId) {
           console.log('🎯 Using specific axis ID:', targetAxisId)
           axisQuery = axisQuery.eq('id', targetAxisId)
         } else {
-          console.log('📅 No specific axis ID, using today\'s date')
-          const today = new Date().toISOString().split('T')[0]
+          console.log('📅 No specific axis ID, using today\'s active axis')
+          // FIXED: Just get the most recent active axis for this group if no specific ID
           axisQuery = axisQuery
-            .eq('date_generated', today)
             .eq('is_active', true)
+            .order('created_at', { ascending: false })
+            .limit(1)
         }
 
         const { data: axisData, error: axisError } = await axisQuery.maybeSingle()
@@ -172,12 +177,30 @@ export const useResults = (axisId?: string) => {
         }
 
         if (!axisData) {
-          console.warn('⚠️ No axis found')
-          setError('No axis data found. Please try again.')
-          return
+          console.warn('⚠️ No axis found with the specified criteria')
+          
+          // FALLBACK: Try to get the most recent axis for this group regardless of active status
+          console.log('🔄 Trying fallback: most recent axis for group')
+          const { data: fallbackAxisData, error: fallbackError } = await supabase
+            .from('axes')
+            .select('*')
+            .eq('group_id', groupId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+            
+          if (fallbackError || !fallbackAxisData) {
+            console.error('❌ Fallback axis query also failed:', fallbackError)
+            setError('No axis data found for this group. Please try again.')
+            return
+          }
+          
+          console.log('✅ Found fallback axis:', fallbackAxisData.id)
+          // Use the fallback data
+          axisData = fallbackAxisData
         }
 
-        console.log('✅ Found axis data:', axisData)
+        console.log('✅ Found axis data:', axisData.id)
 
         // Process axis data
         const processedAxis: DailyAxis = {
